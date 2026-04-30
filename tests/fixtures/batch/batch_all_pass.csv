@@ -1,0 +1,3 @@
+fixture_id,image_path,form_path,truth_path,expected_path,scenario
+realistic_clean_lager,tests/fixtures/labels/images/realistic_clean_lager.png,tests/fixtures/labels/forms/realistic_clean_lager.json,tests/fixtures/labels/truth/realistic_clean_lager.json,tests/fixtures/labels/expected/realistic_clean_lager.json,single_pass
+generated_citrus_ipa,tests/fixtures/labels/images/generated_citrus_ipa.png,tests/fixtures/labels/forms/generated_citrus_ipa.json,tests/fixtures/labels/truth/generated_citrus_ipa.json,tests/fixtures/labels/expected/generated_citrus_ipa.json,single_pass
