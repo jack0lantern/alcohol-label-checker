@@ -175,6 +175,48 @@ def test_government_warning_none_does_not_crash() -> None:
     assert result["government_warning"].status == "fail"
 
 
+def test_government_warning_both_none_is_not_pass() -> None:
+    truth = GroundTruthFields(
+        brand_name="Acme Brewing",
+        class_type="MALT BEVERAGE",
+        alcohol_content="5% alc/vol",
+        net_contents="12 fl oz",
+        government_warning=None,
+    )
+    extracted = LabelExtractedFields(
+        brand_name="Acme Brewing",
+        class_type="MALT BEVERAGE",
+        alcohol_content="5% alc/vol",
+        net_contents="12 fl oz",
+        government_warning=None,
+    )
+
+    result = match_fields(truth, extracted)
+
+    assert result["government_warning"].status != "pass"
+
+
+def test_government_warning_both_empty_is_not_pass() -> None:
+    truth = GroundTruthFields(
+        brand_name="Acme Brewing",
+        class_type="MALT BEVERAGE",
+        alcohol_content="5% alc/vol",
+        net_contents="12 fl oz",
+        government_warning="",
+    )
+    extracted = LabelExtractedFields(
+        brand_name="Acme Brewing",
+        class_type="MALT BEVERAGE",
+        alcohol_content="5% alc/vol",
+        net_contents="12 fl oz",
+        government_warning="",
+    )
+
+    result = match_fields(truth, extracted)
+
+    assert result["government_warning"].status != "pass"
+
+
 def test_warning_similarity_equal_threshold_is_review_required(
     monkeypatch,
 ) -> None:

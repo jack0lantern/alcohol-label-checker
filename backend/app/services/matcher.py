@@ -36,6 +36,9 @@ def match_fields(
 
 
 def _match_government_warning(expected: FieldValue, extracted: FieldValue) -> MatchStatus:
+    if _is_missing_warning(expected) or _is_missing_warning(extracted):
+        return "fail"
+
     if extracted == expected:
         return "pass"
 
@@ -56,3 +59,9 @@ def _as_similarity_text(value: FieldValue) -> str:
     if value is None:
         return ""
     return value
+
+
+def _is_missing_warning(value: FieldValue) -> bool:
+    if value is None:
+        return True
+    return value.strip() == ""
