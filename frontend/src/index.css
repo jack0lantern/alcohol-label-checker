@@ -378,33 +378,3 @@ button:disabled {
   50% { opacity: 1; transform: scale(1.2); }
   100% { opacity: 0.5; transform: scale(0.8); }
 }
-
-/* Decorative elements */
-.decorative-cross {
-  position: absolute;
-  top: var(--spacing-lg);
-  right: var(--spacing-lg);
-  width: 20px;
-  height: 20px;
-  opacity: 0.2;
-}
-
-.decorative-cross::before, .decorative-cross::after {
-  content: '';
-  position: absolute;
-  background: var(--text-color);
-}
-
-.decorative-cross::before {
-  top: 50%;
-  left: 0;
-  width: 100%;
-  height: 1px;
-}
-
-.decorative-cross::after {
-  top: 0;
-  left: 50%;
-  width: 1px;
-  height: 100%;
-}

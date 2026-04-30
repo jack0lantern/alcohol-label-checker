@@ -138,7 +138,6 @@ function BatchUpload() {
 
   return (
     <section aria-label="Batch upload">
-      <div className="decorative-cross"></div>
       <h2>Batch Check</h2>
       
       <div className="file-drop-area" onClick={() => document.getElementById("batch-mapping-json")?.click()}>

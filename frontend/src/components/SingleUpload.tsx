@@ -83,7 +83,6 @@ function SingleUpload() {
 
   return (
     <section aria-label="Single upload">
-      <div className="decorative-cross"></div>
       <h2>Single Check</h2>
       
       <div className="file-drop-area" onClick={() => document.getElementById("single-form-pdf")?.click()}>
