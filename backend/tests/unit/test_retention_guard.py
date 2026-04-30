@@ -1,3 +1,7 @@
+import os
+import io
+from pathlib import Path
+
 import pytest
 
 from app.services.retention_guard import (
@@ -42,3 +46,22 @@ def test_forbid_disk_writes_blocks_open_write_modes() -> None:
         with pytest.raises(DiskWriteViolation):
             with open("blocked-write.txt", "w", encoding="utf-8"):
                 pass
+
+
+def test_forbid_disk_writes_blocks_pathlib_write_text() -> None:
+    with forbid_disk_writes():
+        with pytest.raises(DiskWriteViolation):
+            Path("blocked-pathlib-write.txt").write_text("forbidden", encoding="utf-8")
+
+
+def test_forbid_disk_writes_blocks_io_open_write_modes() -> None:
+    with forbid_disk_writes():
+        with pytest.raises(DiskWriteViolation):
+            with io.open("blocked-io-open-write.txt", "w", encoding="utf-8"):
+                pass
+
+
+def test_forbid_disk_writes_blocks_os_open_write_flags() -> None:
+    with forbid_disk_writes():
+        with pytest.raises(DiskWriteViolation):
+            os.open("blocked-os-open-write.txt", os.O_WRONLY | os.O_CREAT)

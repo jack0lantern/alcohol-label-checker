@@ -10,7 +10,12 @@ from app.services.image_preprocess import preprocess_image
 from app.services.matcher import match_fields
 from app.services.ocr.tesseract_engine import TesseractEngine
 from app.services.pdf_parser import extract_ground_truth
-from app.services.retention_guard import clear_all_batch_artifacts, clear_batch_artifacts, forbid_disk_writes
+from app.services.retention_guard import (
+    clear_all_batch_artifacts,
+    clear_batch_artifacts,
+    clear_single_artifacts,
+    forbid_disk_writes,
+)
 
 _MAX_ATTEMPTS_PER_ITEM = 2
 _COMPLETED_JOB_STATUSES = {"completed", "completed_with_failures"}
@@ -200,19 +205,25 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
 def _verify_item_payload(item_payload: dict[str, Any]) -> dict[str, Any]:
     form_payload = item_payload.get("form_payload")
     label_payload = item_payload.get("label_payload")
-    form_bytes = json.dumps(form_payload).encode("utf-8")
-    label_bytes = json.dumps(label_payload).encode("utf-8")
+    form_bytes = bytearray(json.dumps(form_payload).encode("utf-8"))
+    label_bytes = bytearray(json.dumps(label_payload).encode("utf-8"))
+    extracted_payloads: list[Any] = []
 
-    with forbid_disk_writes():
-        ground_truth = extract_ground_truth(form_bytes)
-        preprocessed_image = preprocess_image(label_bytes)
-        ocr_text = TesseractEngine().extract_text(preprocessed_image)
-        extracted_fields = extract_fields(ocr_text)
-        field_results = match_fields(ground_truth, extracted_fields)
-    return {
-        "status": _compute_overall_status(field_results),
-        "field_results": _serialize_field_results(field_results),
-    }
+    try:
+        with forbid_disk_writes():
+            ground_truth = extract_ground_truth(bytes(form_bytes))
+            preprocessed_image = preprocess_image(bytes(label_bytes))
+            ocr_text = TesseractEngine().extract_text(preprocessed_image)
+            extracted_fields = extract_fields(ocr_text)
+            field_results = match_fields(ground_truth, extracted_fields)
+
+        extracted_payloads.extend([preprocessed_image, ocr_text, extracted_fields, field_results])
+        return {
+            "status": _compute_overall_status(field_results),
+            "field_results": _serialize_field_results(field_results),
+        }
+    finally:
+        clear_single_artifacts(form_bytes, label_bytes, extracted_payloads)
 
 
 def _compute_overall_status(field_results: dict[str, FieldResult]) -> MatchStatus:
