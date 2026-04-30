@@ -7,6 +7,7 @@ from app.services.batch_manager import get_events_since, get_job_snapshot, is_jo
 router = APIRouter()
 
 
+@router.websocket("/verify/batch/{job_id}/events")
 @router.websocket("/ws/batch/{job_id}")
 async def websocket_endpoint(websocket: WebSocket, job_id: str) -> None:
     await websocket.accept()

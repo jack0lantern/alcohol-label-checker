@@ -57,7 +57,7 @@ def test_batch_websocket_streams_progress_events() -> None:
     job_id = create_response.json()["job_id"]
 
     events: list[dict[str, object]] = []
-    with client.websocket_connect(f"/ws/batch/{job_id}") as websocket:
+    with client.websocket_connect(f"/verify/batch/{job_id}/events") as websocket:
         while True:
             event = websocket.receive_json()
             events.append(event)
