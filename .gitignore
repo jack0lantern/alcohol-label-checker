@@ -51,7 +51,3 @@ local.settings.json
 *.log
 tmp/
 temp/
-
-# Node
-node_modules/
-**/node_modules/
