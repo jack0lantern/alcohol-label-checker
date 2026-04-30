@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 
 from pypdf import PdfReader, PdfWriter
+from pypdf.constants import CatalogDictionary
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FORMS_DIR = REPO_ROOT / "tests" / "fixtures" / "labels" / "forms"
@@ -80,7 +81,12 @@ def write_filled_pdf(dest: Path, fields: dict[str, str]) -> None:
     writer = PdfWriter()
     writer.append(reader)
     writer.set_need_appearances_writer(True)
+    # Flatten merges field appearances into page /Contents via XObjects. Without the
+    # next steps, viewers also paint the living AcroForm widgets on top → double text / blur.
     writer.update_page_form_field_values(None, fields, flatten=True)
+    writer.remove_annotations(["/Widget"])
+    if CatalogDictionary.ACRO_FORM in writer.root_object:
+        del writer.root_object[CatalogDictionary.ACRO_FORM]
     buf = BytesIO()
     writer.write(buf)
     dest.write_bytes(buf.getvalue())
