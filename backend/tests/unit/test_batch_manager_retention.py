@@ -1,5 +1,11 @@
+import base64
+from pathlib import Path
+
 from app.domain.models import FieldResult, GroundTruthFields, LabelExtractedFields
 from app.services import batch_manager
+from app.services.batch_manager import _verify_item_payload
+
+FIXTURES_ROOT = Path(__file__).resolve().parents[3] / "tests/fixtures/labels"
 
 
 def test_verify_item_payload_clears_intermediate_artifacts(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -51,9 +57,10 @@ def test_verify_item_payload_clears_intermediate_artifacts(monkeypatch) -> None:
         },
     )
 
+    pdf_bytes = (FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf").read_bytes()
     result = batch_manager._verify_item_payload(  # noqa: SLF001
         {
-            "form_payload": {"brand_name": "Acme Brewing"},
+            "form_payload": {"pdf_base64": base64.b64encode(pdf_bytes).decode("ascii")},
             "label_payloads": [{"brand_name": "Acme Brewing"}],
         }
     )
@@ -85,3 +92,17 @@ def test_get_job_snapshot_purges_expired_completed_jobs(monkeypatch) -> None:  #
 
     with batch_manager._jobs_lock:  # noqa: SLF001
         assert "job-expired" not in batch_manager._jobs  # noqa: SLF001
+
+
+def test_verify_item_payload_decodes_pdf_base64() -> None:
+    pdf_bytes = (FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf").read_bytes()
+    image_bytes = (FIXTURES_ROOT / "images/realistic_clean_lager.png").read_bytes()
+
+    item_payload = {
+        "form_payload": {"pdf_base64": base64.b64encode(pdf_bytes).decode("ascii")},
+        "label_payloads": [{"image_base64": base64.b64encode(image_bytes).decode("ascii")}],
+    }
+
+    result = _verify_item_payload(item_payload)
+    assert result["status"] in {"pass", "fail", "review_required"}
+    assert "field_results" in result

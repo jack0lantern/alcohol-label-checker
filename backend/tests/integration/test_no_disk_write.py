@@ -1,11 +1,15 @@
+import base64
 import json
 import tempfile
 import time
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from app.domain.models import GroundTruthFields
 from app.main import create_app
+
+_FIXTURES_ROOT = Path(__file__).resolve().parents[3] / "tests/fixtures/labels"
 
 
 def test_single_verify_rejects_disk_write_attempts(monkeypatch) -> None:  # type: ignore[no-untyped-def]
@@ -82,18 +86,10 @@ def test_batch_verify_marks_item_review_required_on_disk_write_attempt(monkeypat
         _extract_ground_truth_with_disk_write,
     )
 
-    label_payload = {
-        "brand_name": "Acme Brewing",
-        "class_type": "MALT BEVERAGE",
-        "alcohol_content": "5% alc/vol",
-        "net_contents": "12 fl oz",
-        "government_warning": (
-            "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-            "alcoholic beverages during pregnancy because of the risk of birth defects. "
-            "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
-            "operate machinery, and may cause health problems."
-        ),
-    }
+    pdf_bytes = (_FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf").read_bytes()
+    pdf_base64 = base64.b64encode(pdf_bytes).decode("ascii")
+    image_bytes = (_FIXTURES_ROOT / "images/realistic_clean_lager.png").read_bytes()
+    image_base64 = base64.b64encode(image_bytes).decode("ascii")
 
     create_response = client.post(
         "/verify/batch",
@@ -101,8 +97,8 @@ def test_batch_verify_marks_item_review_required_on_disk_write_attempt(monkeypat
             "items": [
                 {
                     "item_id": "item-disk-write",
-                    "form_payload": label_payload,
-                    "label_payloads": [label_payload],
+                    "form_payload": {"pdf_base64": pdf_base64},
+                    "label_payloads": [{"image_base64": image_base64}],
                 }
             ]
         },
