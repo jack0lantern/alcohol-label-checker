@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "description": "Hermetic offline fixture dataset for alcohol label verification.",
+  "generated_at_utc": "2026-04-30T02:56:59Z",
+  "fixtures": [
+    {
+      "fixture_id": "realistic_clean_lager",
+      "sample_type": "realistic",
+      "source": "manual-curation",
+      "scenario": "single_pass",
+      "notes": "Realistic production-ready label with exact legal warning text.",
+      "image": "tests/fixtures/labels/images/realistic_clean_lager.png",
+      "form": "tests/fixtures/labels/forms/realistic_clean_lager.json",
+      "truth": "tests/fixtures/labels/truth/realistic_clean_lager.json",
+      "expected": "tests/fixtures/labels/expected/realistic_clean_lager.json"
+    },
+    {
+      "fixture_id": "generated_citrus_ipa",
+      "sample_type": "generated",
+      "source": "synthetic-generator",
+      "scenario": "single_pass",
+      "notes": "Synthetic but valid label values generated for normal OCR pathways.",
+      "image": "tests/fixtures/labels/images/generated_citrus_ipa.png",
+      "form": "tests/fixtures/labels/forms/generated_citrus_ipa.json",
+      "truth": "tests/fixtures/labels/truth/generated_citrus_ipa.json",
+      "expected": "tests/fixtures/labels/expected/generated_citrus_ipa.json"
+    },
+    {
+      "fixture_id": "adversarial_warning_typo",
+      "sample_type": "adversarial",
+      "source": "targeted-mutation",
+      "scenario": "review_required",
+      "notes": "Single-character warning typo designed to trigger review_required outcome.",
+      "image": "tests/fixtures/labels/images/adversarial_warning_typo.png",
+      "form": "tests/fixtures/labels/forms/adversarial_warning_typo.json",
+      "truth": "tests/fixtures/labels/truth/adversarial_warning_typo.json",
+      "expected": "tests/fixtures/labels/expected/adversarial_warning_typo.json"
+    },
+    {
+      "fixture_id": "adversarial_wrong_abv",
+      "sample_type": "adversarial",
+      "source": "targeted-mutation",
+      "scenario": "single_fail",
+      "notes": "ABV mismatch and warning mismatch trigger fail outcomes.",
+      "image": "tests/fixtures/labels/images/adversarial_wrong_abv.png",
+      "form": "tests/fixtures/labels/forms/adversarial_wrong_abv.json",
+      "truth": "tests/fixtures/labels/truth/adversarial_wrong_abv.json",
+      "expected": "tests/fixtures/labels/expected/adversarial_wrong_abv.json"
+    },
+    {
+      "fixture_id": "generated_retry_then_review",
+      "sample_type": "generated",
+      "source": "synthetic-generator",
+      "scenario": "retry_then_review",
+      "notes": "Used by batch retry workflow where second attempt still requires review.",
+      "image": "tests/fixtures/labels/images/generated_retry_then_review.png",
+      "form": "tests/fixtures/labels/forms/generated_retry_then_review.json",
+      "truth": "tests/fixtures/labels/truth/generated_retry_then_review.json",
+      "expected": "tests/fixtures/labels/expected/generated_retry_then_review.json"
+    }
+  ]
+}

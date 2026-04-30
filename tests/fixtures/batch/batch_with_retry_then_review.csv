@@ -1,0 +1,2 @@
+fixture_id,image_path,form_path,truth_path,expected_path,scenario
+generated_retry_then_review,tests/fixtures/labels/images/generated_retry_then_review.png,tests/fixtures/labels/forms/generated_retry_then_review.json,tests/fixtures/labels/truth/generated_retry_then_review.json,tests/fixtures/labels/expected/generated_retry_then_review.json,retry_then_review
