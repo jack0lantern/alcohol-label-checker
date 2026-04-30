@@ -160,6 +160,53 @@ def test_batch_verify_marks_pass_and_fail_only_job_as_completed_with_failures() 
     assert by_id["item-fail"]["overall_status"] == "fail"
 
 
+def test_batch_report_download_can_purge_completed_job() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    warning_text = (
+        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
+        "alcoholic beverages during pregnancy because of the risk of birth defects."
+    )
+
+    response = client.post(
+        "/verify/batch",
+        json={
+            "items": [
+                {
+                    "item_id": "item-pass",
+                    "form_payload": {
+                        "brand_name": "Acme Brewing",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                    "label_payload": {
+                        "brand_name": "Acme Brewing",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                }
+            ]
+        },
+    )
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+
+    completed_report = _wait_for_completed_report(client, job_id)
+    assert completed_report["status"] == "completed"
+
+    purge_response = client.get(f"/verify/batch/{job_id}/report?purge=true")
+    assert purge_response.status_code == 200
+    assert purge_response.json()["job_id"] == job_id
+
+    missing_response = client.get(f"/verify/batch/{job_id}/report")
+    assert missing_response.status_code == 404
+
+
 def _wait_for_completed_report(client: TestClient, job_id: str) -> dict[str, object]:
     timeout_at = time.time() + 5
     while time.time() < timeout_at:

@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -19,6 +20,8 @@ from app.services.retention_guard import (
 
 _MAX_ATTEMPTS_PER_ITEM = 2
 _COMPLETED_JOB_STATUSES = {"completed", "completed_with_failures"}
+_COMPLETED_JOB_TTL_SECONDS = 600
+_current_time = time.time
 
 
 @dataclass(slots=True)
@@ -38,6 +41,7 @@ class BatchJobRecord:
     total: int
     processed: int
     items: list[BatchItemState]
+    completed_at: float | None = None
     events: list[dict[str, Any]] = field(default_factory=list)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -58,6 +62,7 @@ def create_batch_job(items: list[dict[str, Any]]) -> str:
     )
 
     with _jobs_lock:
+        _purge_expired_jobs_locked()
         _jobs[job_id] = record
 
     _emit_event(record, event_type="job_created")
@@ -68,6 +73,7 @@ def create_batch_job(items: list[dict[str, Any]]) -> str:
 
 def get_job_snapshot(job_id: str) -> dict[str, Any] | None:
     with _jobs_lock:
+        _purge_expired_jobs_locked()
         record = _jobs.get(job_id)
     if record is None:
         return None
@@ -122,6 +128,7 @@ def _process_job(job_id: str, items: list[dict[str, Any]]) -> None:
     record = _get_required_job(job_id)
     with record.lock:
         record.status = "running"
+        record.completed_at = None
     _emit_event(record, event_type="job_started")
 
     for index, item_payload in enumerate(items):
@@ -131,6 +138,7 @@ def _process_job(job_id: str, items: list[dict[str, Any]]) -> None:
     with record.lock:
         has_failure_outcome = any(item.overall_status in {"fail", "review_required"} for item in record.items)
         record.status = "completed_with_failures" if has_failure_outcome else "completed"
+        record.completed_at = _current_time()
         processed = record.processed
         total = record.total
         status = record.status
@@ -279,6 +287,20 @@ def _resolve_item_id(item: dict[str, Any], index: int) -> str:
     if isinstance(item_id, str) and item_id.strip():
         return item_id
     return f"item-{index}"
+
+
+def _purge_expired_jobs_locked() -> int:
+    now = _current_time()
+    expired_ids = [
+        job_id
+        for job_id, record in _jobs.items()
+        if record.status in _COMPLETED_JOB_STATUSES
+        and record.completed_at is not None
+        and now - record.completed_at >= _COMPLETED_JOB_TTL_SECONDS
+    ]
+    for job_id in expired_ids:
+        del _jobs[job_id]
+    return len(expired_ids)
 
 
 def _get_required_job(job_id: str) -> BatchJobRecord:

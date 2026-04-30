@@ -115,7 +115,7 @@ function BatchUpload() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch(`/verify/batch/${jobId}/report`);
+      const response = await fetch(`/verify/batch/${jobId}/report?purge=true`);
       if (!response.ok) {
         throw new Error("Batch report request failed");
       }

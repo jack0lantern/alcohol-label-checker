@@ -51,3 +51,31 @@ def test_single_verify_endpoint_returns_field_results() -> None:
     assert body["field_results"]["alcohol_content"]["status"] == "pass"
     assert body["field_results"]["net_contents"]["status"] == "pass"
     assert body["field_results"]["government_warning"]["status"] == "pass"
+
+
+def test_single_verify_endpoint_falls_back_for_binary_uploads() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    response = client.post(
+        "/verify/single",
+        files={
+            "form_pdf": ("form.pdf", b"%PDF-1.4 binary-content", "application/pdf"),
+            "label_image": ("label.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR", "image/png"),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "review_required"
+    assert set(body["field_results"]) == {
+        "brand_name",
+        "class_type",
+        "alcohol_content",
+        "net_contents",
+        "government_warning",
+    }
+    for field_result in body["field_results"].values():
+        assert field_result["status"] == "review_required"
+        assert field_result["expected_value"] is None
+        assert field_result["extracted_value"] is None

@@ -1,6 +1,7 @@
+import json
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -15,6 +16,7 @@ from app.services.report_builder import build_batch_report
 from app.services.retention_guard import clear_single_artifacts, forbid_disk_writes
 
 router = APIRouter()
+_SINGLE_FALLBACK_FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
 
 
 class BatchItemPayload(BaseModel):
@@ -46,6 +48,8 @@ async def verify_single(form_pdf: UploadFile = File(...), label_image: UploadFil
             "status": _compute_overall_status(field_results),
             "field_results": _serialize_field_results(field_results),
         }
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        return _build_single_upload_fallback_response()
     finally:
         clear_single_artifacts(ground_truth_pdf, label_image_bytes, extracted_payloads)
 
@@ -57,13 +61,15 @@ async def verify_batch(payload: BatchVerifyRequest) -> dict[str, str]:
 
 
 @router.get("/verify/batch/{job_id}/report")
-async def get_batch_report(job_id: str) -> JSONResponse:
+async def get_batch_report(job_id: str, purge: bool = Query(default=False)) -> JSONResponse:
     snapshot = get_job_snapshot(job_id)
     if snapshot is None:
         raise HTTPException(status_code=404, detail="Batch job not found")
 
     report = build_batch_report(snapshot)
     status_code = 202 if snapshot["status"] in {"queued", "running"} else 200
+    if purge and status_code == 200:
+        clear_job(job_id)
     return JSONResponse(status_code=status_code, content=report)
 
 
@@ -96,4 +102,18 @@ def _serialize_field_results(field_results: dict[str, FieldResult]) -> dict[str,
             "status": result.status,
         }
         for field_name, result in field_results.items()
+    }
+
+
+def _build_single_upload_fallback_response() -> dict[str, object]:
+    return {
+        "status": "review_required",
+        "field_results": {
+            field_name: {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            }
+            for field_name in _SINGLE_FALLBACK_FIELDS
+        },
     }
