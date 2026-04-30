@@ -1,9 +1,10 @@
 import json
+from base64 import b64encode
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.domain.models import FieldResult, MatchStatus
 from app.services.batch_manager import clear_all_jobs, clear_job, create_batch_job, get_job_snapshot
@@ -17,16 +18,6 @@ from app.services.retention_guard import clear_single_artifacts, forbid_disk_wri
 
 router = APIRouter()
 _SINGLE_FALLBACK_FIELDS = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
-
-
-class BatchItemPayload(BaseModel):
-    item_id: str | None = None
-    form_payload: Any
-    label_payloads: list[Any] = Field(min_length=1, max_length=10)
-
-
-class BatchVerifyRequest(BaseModel):
-    items: list[BatchItemPayload]
 
 
 @router.post("/verify/single")
@@ -73,8 +64,67 @@ async def verify_single(form_pdf: UploadFile = File(...), label_images: list[Upl
 
 
 @router.post("/verify/batch", status_code=202)
-async def verify_batch(payload: BatchVerifyRequest) -> dict[str, str]:
-    job_id = create_batch_job([item.model_dump() for item in payload.items])
+async def verify_batch(
+    files: list[UploadFile] = File(...),
+    mapping: str = Form(...),
+) -> dict[str, str]:
+    try:
+        mapping_doc = json.loads(mapping)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="invalid mapping")
+
+    items_spec = mapping_doc.get("items") if isinstance(mapping_doc, dict) else None
+    if not isinstance(items_spec, list) or not items_spec:
+        raise HTTPException(status_code=400, detail="missing files or mapping")
+    if len(items_spec) > 300:
+        raise HTTPException(status_code=400, detail="batch exceeds 300 items")
+    if not files:
+        raise HTTPException(status_code=400, detail="missing files or mapping")
+
+    file_bytes_by_name: dict[str, bytes] = {}
+    for upload in files:
+        if upload.filename is None:
+            raise HTTPException(status_code=400, detail="file without filename")
+        file_bytes_by_name[upload.filename] = await upload.read()
+
+    seen_ids: set[str] = set()
+    items: list[dict[str, Any]] = []
+    for index, item_spec in enumerate(items_spec):
+        if not isinstance(item_spec, dict):
+            raise HTTPException(status_code=400, detail=f"item {index} must be a JSON object")
+
+        raw_item_id = item_spec.get("item_id")
+        item_id = raw_item_id if isinstance(raw_item_id, str) and raw_item_id.strip() else f"item-{index + 1}"
+        if item_id in seen_ids:
+            raise HTTPException(status_code=400, detail=f"duplicate item_id: {item_id}")
+        seen_ids.add(item_id)
+
+        form_filename = item_spec.get("form_filename")
+        label_filenames = item_spec.get("label_filenames")
+        if not isinstance(form_filename, str):
+            raise HTTPException(status_code=400, detail=f"item {item_id} missing form_filename")
+        if not isinstance(label_filenames, list) or not 1 <= len(label_filenames) <= 10:
+            raise HTTPException(status_code=400, detail=f"item {item_id} must have 1-10 labels")
+        if form_filename not in file_bytes_by_name:
+            raise HTTPException(status_code=400, detail=f"missing file: {form_filename}")
+        for label_filename in label_filenames:
+            if not isinstance(label_filename, str):
+                raise HTTPException(status_code=400, detail=f"item {item_id} has non-string label filename")
+            if label_filename not in file_bytes_by_name:
+                raise HTTPException(status_code=400, detail=f"missing file: {label_filename}")
+
+        items.append({
+            "item_id": item_id,
+            "form_payload": {
+                "pdf_base64": b64encode(file_bytes_by_name[form_filename]).decode("ascii"),
+            },
+            "label_payloads": [
+                {"image_base64": b64encode(file_bytes_by_name[name]).decode("ascii")}
+                for name in label_filenames
+            ],
+        })
+
+    job_id = create_batch_job(items)
     return {"job_id": job_id}
 
 

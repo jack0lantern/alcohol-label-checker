@@ -86,23 +86,28 @@ def test_batch_verify_marks_item_review_required_on_disk_write_attempt(monkeypat
         _extract_ground_truth_with_disk_write,
     )
 
-    pdf_bytes = (_FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf").read_bytes()
-    pdf_base64 = base64.b64encode(pdf_bytes).decode("ascii")
-    image_bytes = (_FIXTURES_ROOT / "images/realistic_clean_lager.png").read_bytes()
-    image_base64 = base64.b64encode(image_bytes).decode("ascii")
+    pdf_path = _FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf"
+    image_path = _FIXTURES_ROOT / "images/realistic_clean_lager.png"
 
-    create_response = client.post(
-        "/verify/batch",
-        json={
-            "items": [
-                {
-                    "item_id": "item-disk-write",
-                    "form_payload": {"pdf_base64": pdf_base64},
-                    "label_payloads": [{"image_base64": image_base64}],
-                }
-            ]
-        },
-    )
+    mapping = json.dumps({
+        "items": [
+            {
+                "item_id": "item-disk-write",
+                "form_filename": pdf_path.name,
+                "label_filenames": [image_path.name],
+            }
+        ]
+    })
+
+    with pdf_path.open("rb") as form_file, image_path.open("rb") as label_file:
+        create_response = client.post(
+            "/verify/batch",
+            data={"mapping": mapping},
+            files=[
+                ("files", (pdf_path.name, form_file, "application/pdf")),
+                ("files", (image_path.name, label_file, "image/png")),
+            ],
+        )
     assert create_response.status_code == 202
     job_id = create_response.json()["job_id"]
 

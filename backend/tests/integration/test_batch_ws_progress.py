@@ -1,4 +1,4 @@
-import base64
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -8,40 +8,43 @@ from app.main import create_app
 FIXTURES_ROOT = Path(__file__).resolve().parents[3] / "tests/fixtures/labels"
 
 
-def _b64_pdf(name: str) -> str:
-    return base64.b64encode((FIXTURES_ROOT / "forms" / name).read_bytes()).decode("ascii")
-
-
-def _b64_image(name: str) -> str:
-    return base64.b64encode((FIXTURES_ROOT / "images" / name).read_bytes()).decode("ascii")
-
-
 def test_batch_websocket_streams_progress_events() -> None:
     app = create_app()
     client = TestClient(app)
 
-    create_response = client.post(
-        "/verify/batch",
-        json={
-            "items": [
-                {
-                    "item_id": "item-1",
-                    "form_payload": {"pdf_base64": _b64_pdf("realistic_clean_lager_f510031.pdf")},
-                    "label_payloads": [{"image_base64": _b64_image("realistic_clean_lager.png")}],
-                },
-                {
-                    "item_id": "item-2",
-                    "form_payload": {"pdf_base64": _b64_pdf("realistic_clean_lager_f510031.pdf")},
-                    "label_payloads": [{"image_base64": _b64_image("realistic_clean_lager.png")}],
-                },
-                {
-                    "item_id": "item-3",
-                    "form_payload": {"pdf_base64": _b64_pdf("realistic_clean_lager_f510031.pdf")},
-                    "label_payloads": ["invalid-json-object"],
-                },
-            ]
-        },
-    )
+    pdf_path = FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf"
+    image_path = FIXTURES_ROOT / "images/realistic_clean_lager.png"
+
+    mapping = json.dumps({
+        "items": [
+            {
+                "item_id": "item-1",
+                "form_filename": pdf_path.name,
+                "label_filenames": [image_path.name],
+            },
+            {
+                "item_id": "item-2",
+                "form_filename": pdf_path.name,
+                "label_filenames": [image_path.name],
+            },
+            {
+                "item_id": "item-3",
+                "form_filename": "broken_form.pdf",
+                "label_filenames": [image_path.name],
+            },
+        ]
+    })
+
+    with pdf_path.open("rb") as form_file, image_path.open("rb") as label_file:
+        create_response = client.post(
+            "/verify/batch",
+            data={"mapping": mapping},
+            files=[
+                ("files", (pdf_path.name, form_file, "application/pdf")),
+                ("files", (image_path.name, label_file, "image/png")),
+                ("files", ("broken_form.pdf", b"not-a-pdf", "application/pdf")),
+            ],
+        )
     assert create_response.status_code == 202
     job_id = create_response.json()["job_id"]
 
