@@ -87,8 +87,11 @@ This README uses **backend** and **API** for the same FastAPI app, but for diffe
 - `POST /verify/single`
   - multipart fields:
     - `form_pdf`
-    - `label_image`
+    - `label_images` (repeat field, min 1 and max 10)
 - `POST /verify/batch`
+  - JSON payload:
+    - `items[].form_payload`
+    - `items[].label_payloads` (array, min 1 and max 10)
 - `GET /verify/batch/{job_id}/report`
   - optional query: `purge=true`
 - `DELETE /verify/batch/{job_id}`

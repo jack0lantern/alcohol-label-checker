@@ -332,8 +332,11 @@ button:disabled {
   font-size: 0.8rem;
   color: #aaa;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr) keeps both columns on-screen when the parent has overflow: hidden
+     and one cell holds long unbroken text (e.g. government warning). */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--spacing-sm);
+  min-width: 0;
 }
 
 .value-box {
@@ -341,6 +344,9 @@ button:disabled {
   padding: var(--spacing-sm);
   border: 1px solid var(--border-color);
   transition: border-color 0.3s ease, transform 0.3s ease;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #c4c4c4;
 }
 
 .value-box:hover {

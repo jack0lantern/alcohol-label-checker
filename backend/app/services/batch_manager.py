@@ -32,6 +32,7 @@ class BatchItemState:
     attempts: int = 0
     overall_status: MatchStatus | None = None
     field_results: dict[str, dict[str, str | None]] = field(default_factory=dict)
+    image_results: list[dict[str, Any]] = field(default_factory=list)
     error: str | None = None
 
 
@@ -90,6 +91,7 @@ def get_job_snapshot(job_id: str) -> dict[str, Any] | None:
                     "attempts": item.attempts,
                     "overall_status": item.overall_status,
                     "field_results": item.field_results,
+                    "image_results": item.image_results,
                     "error": item.error,
                 }
                 for item in record.items
@@ -197,6 +199,7 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
             item_state.overall_status = result["status"]
             item_state.status = "completed"
             item_state.field_results = result["field_results"]
+            item_state.image_results = result["image_results"]
             item_state.error = None
             record.processed += 1
             processed = record.processed
@@ -216,26 +219,44 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
 
 def _verify_item_payload(item_payload: dict[str, Any]) -> dict[str, Any]:
     form_payload = item_payload.get("form_payload")
-    label_payload = item_payload.get("label_payload")
+    label_payloads = item_payload.get("label_payloads")
+    if not isinstance(label_payloads, list) or not 1 <= len(label_payloads) <= 10:
+        raise ValueError("label_payloads must include between 1 and 10 payloads")
+
     form_bytes = bytearray(json.dumps(form_payload).encode("utf-8"))
-    label_bytes = bytearray(_coerce_label_bytes(label_payload))
+    label_bytes_list = [bytearray(_coerce_label_bytes(label_payload)) for label_payload in label_payloads]
     extracted_payloads: list[Any] = []
 
     try:
         with forbid_disk_writes():
             ground_truth = extract_ground_truth(bytes(form_bytes))
-            preprocessed_image = preprocess_image(bytes(label_bytes))
-            ocr_text = TesseractEngine().extract_text(preprocessed_image)
-            extracted_fields = extract_fields(ocr_text)
-            field_results = match_fields(ground_truth, extracted_fields)
+            image_results: list[dict[str, Any]] = []
+            for label_bytes in label_bytes_list:
+                try:
+                    preprocessed_image = preprocess_image(bytes(label_bytes))
+                    ocr_text = TesseractEngine().extract_text(preprocessed_image)
+                    extracted_fields = extract_fields(ocr_text)
+                    field_results = match_fields(ground_truth, extracted_fields)
+                except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                    image_results.append(_build_single_image_fallback_result())
+                    continue
 
-        extracted_payloads.extend([preprocessed_image, ocr_text, extracted_fields, field_results])
+                extracted_payloads.extend([preprocessed_image, ocr_text, extracted_fields, field_results])
+                image_results.append(
+                    {
+                        "status": _compute_overall_status(field_results),
+                        "field_results": _serialize_field_results(field_results),
+                    }
+                )
+
+        aggregate_field_results = _aggregate_field_results(image_results)
         return {
-            "status": _compute_overall_status(field_results),
-            "field_results": _serialize_field_results(field_results),
+            "status": _compute_overall_status_from_serialized(aggregate_field_results),
+            "field_results": aggregate_field_results,
+            "image_results": image_results,
         }
     finally:
-        clear_single_artifacts(form_bytes, label_bytes, extracted_payloads)
+        clear_single_artifacts(form_bytes, *label_bytes_list, extracted_payloads)
 
 
 def _coerce_label_bytes(label_payload: Any) -> bytes:
@@ -243,7 +264,8 @@ def _coerce_label_bytes(label_payload: Any) -> bytes:
         raw_image = label_payload.get("image_base64")
         if isinstance(raw_image, str):
             return b64decode(raw_image)
-    return json.dumps(label_payload).encode("utf-8")
+        return json.dumps(label_payload).encode("utf-8")
+    raise ValueError("label payload must be a JSON object")
 
 
 def _compute_overall_status(field_results: dict[str, FieldResult]) -> MatchStatus:
@@ -296,6 +318,97 @@ def _resolve_item_id(item: dict[str, Any], index: int) -> str:
     if isinstance(item_id, str) and item_id.strip():
         return item_id
     return f"item-{index}"
+
+
+def _build_single_image_fallback_result() -> dict[str, Any]:
+    return {
+        "status": "review_required",
+        "field_results": {
+            "brand_name": {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            },
+            "class_type": {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            },
+            "alcohol_content": {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            },
+            "net_contents": {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            },
+            "government_warning": {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            },
+        },
+    }
+
+
+def _aggregate_field_results(image_results: list[dict[str, Any]]) -> dict[str, dict[str, str | None]]:
+    status_rank = {"pass": 2, "review_required": 1, "fail": 0}
+    aggregate: dict[str, dict[str, str | None]] = {}
+    fields = ("brand_name", "class_type", "alcohol_content", "net_contents", "government_warning")
+    for field_name in fields:
+        best_result: dict[str, str | None] | None = None
+        best_rank = -1
+        for image_result in image_results:
+            field_results = image_result.get("field_results")
+            if not isinstance(field_results, dict):
+                continue
+            field_result = field_results.get(field_name)
+            if not isinstance(field_result, dict):
+                continue
+            status = field_result.get("status")
+            if not isinstance(status, str):
+                continue
+            current_rank = status_rank.get(status, -1)
+            if current_rank > best_rank:
+                best_rank = current_rank
+                best_result = {
+                    "expected_value": field_result.get("expected_value"),
+                    "extracted_value": field_result.get("extracted_value"),
+                    "status": status,
+                }
+                continue
+            if current_rank == best_rank and best_result is not None:
+                if best_result.get("extracted_value") is None and field_result.get("extracted_value") is not None:
+                    best_result = {
+                        "expected_value": field_result.get("expected_value"),
+                        "extracted_value": field_result.get("extracted_value"),
+                        "status": status,
+                    }
+
+        if best_result is not None:
+            aggregate[field_name] = best_result
+        else:
+            aggregate[field_name] = {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            }
+    return aggregate
+
+
+def _compute_overall_status_from_serialized(field_results: dict[str, dict[str, str | None]]) -> MatchStatus:
+    statuses = {
+        result["status"]
+        for result in field_results.values()
+        if isinstance(result.get("status"), str)
+    }
+    if "fail" in statuses:
+        return "fail"
+    if "review_required" in statuses:
+        return "review_required"
+    return "pass"
 
 
 def _purge_expired_jobs_locked() -> int:

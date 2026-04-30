@@ -25,13 +25,13 @@ def test_batch_websocket_streams_progress_events() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "A",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 },
                 {
                     "item_id": "item-2",
@@ -42,13 +42,13 @@ def test_batch_websocket_streams_progress_events() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "DIFFERENT",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 },
                 {
                     "item_id": "item-3",
@@ -59,7 +59,7 @@ def test_batch_websocket_streams_progress_events() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": "invalid-json-object",
+                    "label_payloads": ["invalid-json-object"],
                 },
             ]
         },

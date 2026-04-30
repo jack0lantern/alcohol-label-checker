@@ -33,13 +33,13 @@ def test_batch_verify_starts_job_and_builds_report() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "Acme Brewing",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 },
                 {
                     "item_id": "item-retry-then-review",
@@ -50,7 +50,7 @@ def test_batch_verify_starts_job_and_builds_report() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": "invalid-json-object",
+                    "label_payloads": ["invalid-json-object"],
                 },
                 {
                     "item_id": "item-fail",
@@ -61,13 +61,13 @@ def test_batch_verify_starts_job_and_builds_report() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "Different Brewing",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 },
             ]
         },
@@ -122,13 +122,13 @@ def test_batch_verify_marks_pass_and_fail_only_job_as_completed_with_failures() 
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "Acme Brewing",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 },
                 {
                     "item_id": "item-fail",
@@ -139,13 +139,13 @@ def test_batch_verify_marks_pass_and_fail_only_job_as_completed_with_failures() 
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "Different Brewing",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 },
             ]
         },
@@ -188,13 +188,13 @@ def test_batch_report_download_can_purge_completed_job() -> None:
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
-                    "label_payload": {
+                    "label_payloads": [{
                         "brand_name": "Acme Brewing",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
-                    },
+                    }],
                 }
             ]
         },
@@ -229,12 +229,12 @@ def test_batch_verify_uses_real_ocr_for_fixture_images() -> None:
                 {
                     "item_id": "ocr-pass",
                     "form_payload": realistic_form,
-                    "label_payload": {"image_base64": b64encode(realistic_image).decode("ascii")},
+                    "label_payloads": [{"image_base64": b64encode(realistic_image).decode("ascii")}],
                 },
                 {
                     "item_id": "ocr-fail",
                     "form_payload": adversarial_form,
-                    "label_payload": {"image_base64": b64encode(adversarial_image).decode("ascii")},
+                    "label_payloads": [{"image_base64": b64encode(adversarial_image).decode("ascii")}],
                 },
             ]
         },
@@ -269,6 +269,88 @@ def test_batch_verify_uses_real_ocr_for_fixture_images() -> None:
         field_result["extracted_value"] is not None
         for field_result in by_id["ocr-fail"]["field_results"].values()
     )
+
+
+def test_batch_verify_rejects_item_with_more_than_ten_images() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    warning_text = (
+        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
+        "alcoholic beverages during pregnancy because of the risk of birth defects."
+    )
+    response = client.post(
+        "/verify/batch",
+        json={
+            "items": [
+                {
+                    "item_id": "too-many-images",
+                    "form_payload": {
+                        "brand_name": "Acme Brewing",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                    "label_payloads": [{"brand_name": "Acme Brewing"} for _ in range(11)],
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_batch_verify_aggregates_best_results_from_multiple_images() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    warning_text = (
+        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
+        "alcoholic beverages during pregnancy because of the risk of birth defects."
+    )
+    response = client.post(
+        "/verify/batch",
+        json={
+            "items": [
+                {
+                    "item_id": "multi-image-pass",
+                    "form_payload": {
+                        "brand_name": "Acme Brewing",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                    "label_payloads": [
+                        {
+                            "brand_name": "Wrong Brand",
+                            "class_type": "MALT BEVERAGE",
+                            "alcohol_content": "5% alc/vol",
+                            "net_contents": "12 fl oz",
+                            "government_warning": warning_text,
+                        },
+                        {
+                            "brand_name": "Acme Brewing",
+                            "class_type": "MALT BEVERAGE",
+                            "alcohol_content": "5% alc/vol",
+                            "net_contents": "12 fl oz",
+                            "government_warning": warning_text,
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+
+    completed_report = _wait_for_completed_report(client, job_id)
+    item = completed_report["items"][0]
+    assert item["status"] == "completed"
+    assert item["overall_status"] == "pass"
+    assert item["field_results"]["brand_name"]["status"] == "pass"
+    assert len(item["image_results"]) == 2
 
 
 def _wait_for_completed_report(client: TestClient, job_id: str) -> dict[str, object]:

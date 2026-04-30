@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.domain.models import FieldResult, MatchStatus
 from app.services.batch_manager import clear_all_jobs, clear_job, create_batch_job, get_job_snapshot
@@ -22,7 +22,7 @@ _SINGLE_FALLBACK_FIELDS = ("brand_name", "class_type", "alcohol_content", "net_c
 class BatchItemPayload(BaseModel):
     item_id: str | None = None
     form_payload: Any
-    label_payload: Any
+    label_payloads: list[Any] = Field(min_length=1, max_length=10)
 
 
 class BatchVerifyRequest(BaseModel):
@@ -30,28 +30,46 @@ class BatchVerifyRequest(BaseModel):
 
 
 @router.post("/verify/single")
-async def verify_single(form_pdf: UploadFile = File(...), label_image: UploadFile = File(...)) -> dict[str, object]:
+async def verify_single(form_pdf: UploadFile = File(...), label_images: list[UploadFile] = File(...)) -> dict[str, object]:
+    if not 1 <= len(label_images) <= 10:
+        raise HTTPException(status_code=400, detail="label_images must include between 1 and 10 files")
+
     ground_truth_pdf = bytearray(await form_pdf.read())
-    label_image_bytes = bytearray(await label_image.read())
+    label_image_bytes_list = [bytearray(await label_image.read()) for label_image in label_images]
     extracted_payloads: list[Any] = []
 
     try:
         with forbid_disk_writes():
             ground_truth = extract_ground_truth(bytes(ground_truth_pdf))
-            preprocessed_image = preprocess_image(bytes(label_image_bytes))
-            ocr_text = TesseractEngine().extract_text(preprocessed_image)
-            extracted_fields = extract_fields(ocr_text)
-            field_results = match_fields(ground_truth, extracted_fields)
+            image_results: list[dict[str, object]] = []
+            for label_image_bytes in label_image_bytes_list:
+                try:
+                    preprocessed_image = preprocess_image(bytes(label_image_bytes))
+                    ocr_text = TesseractEngine().extract_text(preprocessed_image)
+                    extracted_fields = extract_fields(ocr_text)
+                    field_results = match_fields(ground_truth, extracted_fields)
+                except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+                    image_results.append(_build_single_image_fallback_result())
+                    continue
 
-        extracted_payloads.extend([preprocessed_image, ocr_text, extracted_fields, field_results])
+                extracted_payloads.extend([preprocessed_image, ocr_text, extracted_fields, field_results])
+                image_results.append(
+                    {
+                        "status": _compute_overall_status(field_results),
+                        "field_results": _serialize_field_results(field_results),
+                    }
+                )
+
+        aggregate_field_results = _aggregate_field_results(image_results)
         return {
-            "status": _compute_overall_status(field_results),
-            "field_results": _serialize_field_results(field_results),
+            "status": _compute_overall_status_from_serialized(aggregate_field_results),
+            "field_results": aggregate_field_results,
+            "image_results": image_results,
         }
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
         return _build_single_upload_fallback_response()
     finally:
-        clear_single_artifacts(ground_truth_pdf, label_image_bytes, extracted_payloads)
+        clear_single_artifacts(ground_truth_pdf, *label_image_bytes_list, extracted_payloads)
 
 
 @router.post("/verify/batch", status_code=202)
@@ -106,6 +124,15 @@ def _serialize_field_results(field_results: dict[str, FieldResult]) -> dict[str,
 
 
 def _build_single_upload_fallback_response() -> dict[str, object]:
+    fallback_result = _build_single_image_fallback_result()
+    return {
+        "status": fallback_result["status"],
+        "field_results": fallback_result["field_results"],
+        "image_results": [fallback_result],
+    }
+
+
+def _build_single_image_fallback_result() -> dict[str, object]:
     return {
         "status": "review_required",
         "field_results": {
@@ -117,3 +144,62 @@ def _build_single_upload_fallback_response() -> dict[str, object]:
             for field_name in _SINGLE_FALLBACK_FIELDS
         },
     }
+
+
+def _aggregate_field_results(
+    image_results: list[dict[str, object]],
+) -> dict[str, dict[str, str | None]]:
+    status_rank = {"pass": 2, "review_required": 1, "fail": 0}
+    aggregate: dict[str, dict[str, str | None]] = {}
+    for field_name in _SINGLE_FALLBACK_FIELDS:
+        best_result: dict[str, str | None] | None = None
+        best_rank = -1
+        for image_result in image_results:
+            field_results = image_result.get("field_results")
+            if not isinstance(field_results, dict):
+                continue
+            field_result = field_results.get(field_name)
+            if not isinstance(field_result, dict):
+                continue
+            status = field_result.get("status")
+            if not isinstance(status, str):
+                continue
+            current_rank = status_rank.get(status, -1)
+            if current_rank > best_rank:
+                best_rank = current_rank
+                best_result = {
+                    "expected_value": field_result.get("expected_value"),
+                    "extracted_value": field_result.get("extracted_value"),
+                    "status": status,
+                }
+                continue
+            if current_rank == best_rank and best_result is not None:
+                if best_result.get("extracted_value") is None and field_result.get("extracted_value") is not None:
+                    best_result = {
+                        "expected_value": field_result.get("expected_value"),
+                        "extracted_value": field_result.get("extracted_value"),
+                        "status": status,
+                    }
+
+        if best_result is not None:
+            aggregate[field_name] = best_result
+        else:
+            aggregate[field_name] = {
+                "expected_value": None,
+                "extracted_value": None,
+                "status": "review_required",
+            }
+    return aggregate
+
+
+def _compute_overall_status_from_serialized(field_results: dict[str, dict[str, str | None]]) -> MatchStatus:
+    statuses = {
+        result["status"]
+        for result in field_results.values()
+        if isinstance(result.get("status"), str)
+    }
+    if "fail" in statuses:
+        return "fail"
+    if "review_required" in statuses:
+        return "review_required"
+    return "pass"

@@ -25,6 +25,7 @@ def build_batch_report(job_snapshot: dict[str, Any]) -> dict[str, Any]:
                 "attempts": item["attempts"],
                 "overall_status": item["overall_status"],
                 "field_results": item["field_results"],
+                "image_results": item.get("image_results", []),
                 "error": item["error"],
             }
             for item in items

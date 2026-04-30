@@ -133,7 +133,7 @@ test("batch upload shows progress and performs report download action", async ({
 
   await page.goto("/");
 
-  await page.getByLabel("Batch Mapping JSON").setInputFiles({
+  await page.locator("#batch-mapping-json").setInputFiles({
     name: "batch.json",
     mimeType: "application/json",
     buffer: Buffer.from('{"items":[]}'),

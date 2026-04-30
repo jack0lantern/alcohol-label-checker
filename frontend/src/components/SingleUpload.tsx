@@ -12,18 +12,39 @@ type SingleVerifyResponse = {
       extracted_value: string | null;
     }
   >;
+  image_results: Array<{
+    status: SingleVerifyStatus;
+    field_results: Record<
+      string,
+      {
+        status: SingleVerifyStatus;
+        expected_value: string | null;
+        extracted_value: string | null;
+      }
+    >;
+  }>;
 };
+
+const EMPTY_FIELD_PLACEHOLDER = "—";
+
+function formatVerificationField(value: string | null | undefined): string {
+  if (value == null) {
+    return EMPTY_FIELD_PLACEHOLDER;
+  }
+  const trimmed = value.trim();
+  return trimmed === "" ? EMPTY_FIELD_PLACEHOLDER : trimmed;
+}
 
 function SingleUpload() {
   const [formPdf, setFormPdf] = useState<File | null>(null);
-  const [labelImage, setLabelImage] = useState<File | null>(null);
+  const [labelImages, setLabelImages] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<SingleVerifyResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const canSubmit = useMemo(() => {
-    return formPdf != null && labelImage != null && !isSubmitting;
-  }, [formPdf, isSubmitting, labelImage]);
+    return formPdf != null && labelImages.length > 0 && labelImages.length <= 10 && !isSubmitting;
+  }, [formPdf, isSubmitting, labelImages]);
 
   const runSingleCheck = async () => {
     if (!canSubmit) {
@@ -32,7 +53,9 @@ function SingleUpload() {
 
     const payload = new FormData();
     payload.append("form_pdf", formPdf);
-    payload.append("label_image", labelImage);
+    for (const labelImage of labelImages) {
+      payload.append("label_images", labelImage);
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -76,16 +99,21 @@ function SingleUpload() {
         }}
       />
 
-      <div className="file-drop-area" onClick={() => document.getElementById("single-label-image")?.click()}>
-        <span className="file-name">{labelImage ? labelImage.name : <span className="placeholder">Select Label Image</span>}</span>
+      <div className="file-drop-area" onClick={() => document.getElementById("single-label-images")?.click()}>
+        <span className="file-name">
+          {labelImages.length > 0
+            ? `${labelImages.length} selected: ${labelImages.map((file) => file.name).join(", ")}`
+            : <span className="placeholder">Select 1-10 Label Images</span>}
+        </span>
       </div>
       <input
-        id="single-label-image"
+        id="single-label-images"
         type="file"
         accept="image/*"
+        multiple
         onChange={(event) => {
-          const nextFile = event.currentTarget.files?.[0] ?? null;
-          setLabelImage(nextFile);
+          const nextFiles = Array.from(event.currentTarget.files ?? []);
+          setLabelImages(nextFiles);
         }}
       />
 
@@ -99,6 +127,10 @@ function SingleUpload() {
         <div className="result-panel">
           <h3>Verification Result</h3>
           <span className={`status-badge ${result.status}`}>{result.status.replace('_', ' ')}</span>
+          <div className="value-box" style={{ marginTop: "var(--spacing-sm)" }}>
+            <span className="value-label">Images Processed</span>
+            {result.image_results.length}
+          </div>
           
           <div className="field-results">
             {Object.entries(result.field_results).map(([field, data]) => (
@@ -107,13 +139,13 @@ function SingleUpload() {
                 <span className={`status-badge ${data.status}`}>{data.status.replace('_', ' ')}</span>
                 
                 <div className="field-values">
-                  <div className="value-box">
+                  <div className="value-box" data-testid={`single-expected-${field}`}>
                     <span className="value-label">Expected (Form)</span>
-                    {data.expected_value || '—'}
+                    {formatVerificationField(data.expected_value)}
                   </div>
-                  <div className="value-box">
+                  <div className="value-box" data-testid={`single-extracted-${field}`}>
                     <span className="value-label">Extracted (Label)</span>
-                    {data.extracted_value || '—'}
+                    {formatVerificationField(data.extracted_value)}
                   </div>
                 </div>
               </div>

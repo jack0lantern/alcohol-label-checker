@@ -33,15 +33,15 @@ def test_single_verify_endpoint_returns_field_results() -> None:
 
     response = client.post(
         "/verify/single",
-        files={
-            "form_pdf": ("form.pdf", json.dumps(ground_truth_payload).encode("utf-8"), "application/pdf"),
-            "label_image": ("label.png", json.dumps(label_payload).encode("utf-8"), "image/png"),
-        },
+        files=[
+            ("form_pdf", ("form.pdf", json.dumps(ground_truth_payload).encode("utf-8"), "application/pdf")),
+            ("label_images", ("label.png", json.dumps(label_payload).encode("utf-8"), "image/png")),
+        ],
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"status", "field_results"}
+    assert set(body) == {"status", "field_results", "image_results"}
     assert body["status"] == "pass"
     assert set(body["field_results"]) == {
         "brand_name",
@@ -63,10 +63,10 @@ def test_single_verify_endpoint_falls_back_for_binary_uploads() -> None:
 
     response = client.post(
         "/verify/single",
-        files={
-            "form_pdf": ("form.pdf", b"%PDF-1.4 binary-content", "application/pdf"),
-            "label_image": ("label.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR", "image/png"),
-        },
+        files=[
+            ("form_pdf", ("form.pdf", b"%PDF-1.4 binary-content", "application/pdf")),
+            ("label_images", ("label.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR", "image/png")),
+        ],
     )
 
     assert response.status_code == 200
@@ -94,10 +94,10 @@ def test_single_verify_uses_real_ocr_for_fixture_image() -> None:
 
     response = client.post(
         "/verify/single",
-        files={
-            "form_pdf": ("form.pdf", json.dumps(form_payload).encode("utf-8"), "application/pdf"),
-            "label_image": ("label.png", image_bytes, "image/png"),
-        },
+        files=[
+            ("form_pdf", ("form.pdf", json.dumps(form_payload).encode("utf-8"), "application/pdf")),
+            ("label_images", ("label.png", image_bytes, "image/png")),
+        ],
     )
 
     assert response.status_code == 200
@@ -123,6 +123,82 @@ def test_single_verify_uses_real_ocr_for_fixture_image() -> None:
         form_payload["government_warning"],
         body["field_results"]["government_warning"]["extracted_value"],
     ) >= 0.8
+
+
+def test_single_verify_rejects_more_than_ten_images() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    form_payload = {
+        "brand_name": "Acme Brewing",
+        "class_type": "MALT BEVERAGE",
+        "alcohol_content": "5% alc/vol",
+        "net_contents": "12 fl oz",
+        "government_warning": (
+            "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
+            "alcoholic beverages during pregnancy because of the risk of birth defects."
+        ),
+    }
+    files: list[tuple[str, tuple[str, bytes, str]]] = [
+        ("form_pdf", ("form.pdf", json.dumps(form_payload).encode("utf-8"), "application/pdf"))
+    ]
+    files.extend(
+        ("label_images", (f"label-{index}.png", b"{}", "image/png"))
+        for index in range(11)
+    )
+
+    response = client.post("/verify/single", files=files)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "label_images must include between 1 and 10 files"
+
+
+def test_single_verify_aggregates_best_results_from_multiple_images() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    warning_text = (
+        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
+        "alcoholic beverages during pregnancy because of the risk of birth defects."
+    )
+    form_payload = {
+        "brand_name": "Acme Brewing",
+        "class_type": "MALT BEVERAGE",
+        "alcohol_content": "5% alc/vol",
+        "net_contents": "12 fl oz",
+        "government_warning": warning_text,
+    }
+    bad_label_payload = {
+        "brand_name": "Different Brewing",
+        "class_type": "MALT BEVERAGE",
+        "alcohol_content": "5% alc/vol",
+        "net_contents": "12 fl oz",
+        "government_warning": warning_text,
+    }
+    good_label_payload = {
+        "brand_name": "Acme Brewing",
+        "class_type": "MALT BEVERAGE",
+        "alcohol_content": "5% alc/vol",
+        "net_contents": "12 fl oz",
+        "government_warning": warning_text,
+    }
+
+    response = client.post(
+        "/verify/single",
+        files=[
+            ("form_pdf", ("form.pdf", json.dumps(form_payload).encode("utf-8"), "application/pdf")),
+            ("label_images", ("bad-label.png", json.dumps(bad_label_payload).encode("utf-8"), "image/png")),
+            ("label_images", ("good-label.png", json.dumps(good_label_payload).encode("utf-8"), "image/png")),
+        ],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "pass"
+    assert len(body["image_results"]) == 2
+    assert body["image_results"][0]["status"] == "fail"
+    assert body["image_results"][1]["status"] == "pass"
+    assert body["field_results"]["brand_name"]["status"] == "pass"
+    assert body["field_results"]["brand_name"]["extracted_value"] == "Acme Brewing"
 
 
 def _similarity(expected: str, extracted: str | None) -> float:

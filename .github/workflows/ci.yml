@@ -84,5 +84,5 @@ jobs:
       - name: Install Playwright browser dependencies
         run: npx playwright install --with-deps chromium
 
-      - name: Run frontend e2e smoke test
-        run: npm run test:e2e -- tests/e2e/smoke.spec.ts
+      - name: Run frontend e2e tests
+        run: npm run test:e2e

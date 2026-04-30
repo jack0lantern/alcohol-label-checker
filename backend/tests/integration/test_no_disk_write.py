@@ -44,10 +44,10 @@ def test_single_verify_rejects_disk_write_attempts(monkeypatch) -> None:  # type
 
     response = client.post(
         "/verify/single",
-        files={
-            "form_pdf": ("form.pdf", json.dumps(label_payload).encode("utf-8"), "application/pdf"),
-            "label_image": ("label.png", json.dumps(label_payload).encode("utf-8"), "image/png"),
-        },
+        files=[
+            ("form_pdf", ("form.pdf", json.dumps(label_payload).encode("utf-8"), "application/pdf")),
+            ("label_images", ("label.png", json.dumps(label_payload).encode("utf-8"), "image/png")),
+        ],
     )
 
     assert response.status_code == 500
@@ -94,7 +94,7 @@ def test_batch_verify_marks_item_review_required_on_disk_write_attempt(monkeypat
                 {
                     "item_id": "item-disk-write",
                     "form_payload": label_payload,
-                    "label_payload": label_payload,
+                    "label_payloads": [label_payload],
                 }
             ]
         },

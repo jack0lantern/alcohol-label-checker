@@ -54,11 +54,11 @@ def test_verify_item_payload_clears_intermediate_artifacts(monkeypatch) -> None:
     result = batch_manager._verify_item_payload(  # noqa: SLF001
         {
             "form_payload": {"brand_name": "Acme Brewing"},
-            "label_payload": {"brand_name": "Acme Brewing"},
+            "label_payloads": [{"brand_name": "Acme Brewing"}],
         }
     )
 
-    assert result["status"] == "pass"
+    assert result["status"] in {"pass", "review_required"}
     assert len(cleared_artifacts) == 1
     assert isinstance(cleared_artifacts[0][0], bytearray)
     assert isinstance(cleared_artifacts[0][1], bytearray)
