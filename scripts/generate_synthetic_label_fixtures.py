@@ -5,19 +5,20 @@ from __future__ import annotations
 
 import csv
 import json
+import struct
+import zlib
+from binascii import crc32
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
 
-PNG_1X1_TRANSPARENT = (
-    b"\x89PNG\r\n\x1a\n"
-    b"\x00\x00\x00\rIHDR"
-    b"\x00\x00\x00\x01\x00\x00\x00\x01"
-    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
-    b"\x00\x00\x00\x0bIDATx\x9cc``\x00\x00\x00\x02\x00\x01"
-    b"\xe2!\xbc3\x00\x00\x00\x00IEND\xaeB`\x82"
-)
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+SAMPLE_TYPE_BASE_COLORS = {
+    "realistic": (76, 114, 176),
+    "generated": (78, 163, 113),
+    "adversarial": (196, 78, 82),
+}
 
 
 @dataclass(frozen=True)
@@ -200,6 +201,45 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
+    chunk_length = struct.pack("!I", len(data))
+    chunk_crc = struct.pack("!I", crc32(chunk_type + data) & 0xFFFFFFFF)
+    return chunk_length + chunk_type + data + chunk_crc
+
+
+def _build_png_bytes(width: int, height: int, rgb_rows: list[bytes]) -> bytes:
+    ihdr = struct.pack("!IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    raw_image_data = b"".join(b"\x00" + row for row in rgb_rows)
+    compressed_data = zlib.compress(raw_image_data, level=9)
+    return b"".join(
+        [
+            PNG_SIGNATURE,
+            _png_chunk(b"IHDR", ihdr),
+            _png_chunk(b"IDAT", compressed_data),
+            _png_chunk(b"IEND", b""),
+        ]
+    )
+
+
+def _build_distinct_image_bytes(spec: FixtureSpec, fixture_index: int) -> bytes:
+    width = 16 + fixture_index
+    height = 10 + (fixture_index % 3)
+    seed = sum(ord(char) for char in spec.fixture_id)
+    base_color = SAMPLE_TYPE_BASE_COLORS.get(spec.sample_type, (120, 120, 120))
+
+    rgb_rows: list[bytes] = []
+    for y_axis in range(height):
+        row = bytearray()
+        for x_axis in range(width):
+            red = (base_color[0] + (x_axis * 11) + (y_axis * 7) + seed) % 256
+            green = (base_color[1] + (x_axis * 5) + (y_axis * 13) + seed) % 256
+            blue = (base_color[2] + (x_axis * 17) + (y_axis * 3) + seed) % 256
+            row.extend((red, green, blue))
+        rgb_rows.append(bytes(row))
+
+    return _build_png_bytes(width, height, rgb_rows)
+
+
 def _repo_relative_path(path: Path, repo_root: Path) -> str:
     return path.relative_to(repo_root).as_posix()
 
@@ -216,13 +256,13 @@ def _write_fixture_files(
         directory.mkdir(parents=True, exist_ok=True)
 
     manifest_fixtures: list[dict[str, str]] = []
-    for spec in fixture_specs:
+    for fixture_index, spec in enumerate(fixture_specs):
         image_path = images_dir / f"{spec.fixture_id}.png"
         form_path = forms_dir / f"{spec.fixture_id}.json"
         truth_path = truth_dir / f"{spec.fixture_id}.json"
         expected_path = expected_dir / f"{spec.fixture_id}.json"
 
-        image_path.write_bytes(PNG_1X1_TRANSPARENT)
+        image_path.write_bytes(_build_distinct_image_bytes(spec, fixture_index))
         _write_json(form_path, spec.extracted)
         _write_json(truth_path, spec.truth)
         _write_json(expected_path, spec.expected)

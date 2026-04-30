@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from pathlib import Path
 
 
@@ -17,7 +18,14 @@ def test_fixture_manifest_references_existing_files() -> None:
     assert fixtures, "Manifest fixtures list must not be empty"
 
     sample_types = set()
+    image_digests_by_fixture: dict[str, str] = {}
+    image_digests_by_type: dict[str, set[str]] = {}
     for fixture in fixtures:
+        fixture_id = fixture.get("fixture_id")
+        assert isinstance(fixture_id, str) and fixture_id, (
+            "Fixture fixture_id must be a non-empty string"
+        )
+
         sample_type = fixture.get("sample_type")
         assert isinstance(sample_type, str) and sample_type, (
             "Fixture sample_type must be a non-empty string"
@@ -38,6 +46,18 @@ def test_fixture_manifest_references_existing_files() -> None:
                 f"Manifest references missing {field} file: {raw_path}"
             )
 
+            if field == "image":
+                digest = sha256(resolved_path.read_bytes()).hexdigest()
+                image_digests_by_fixture[fixture_id] = digest
+                image_digests_by_type.setdefault(sample_type, set()).add(digest)
+
     assert REQUIRED_SAMPLE_TYPES.issubset(sample_types), (
         "Manifest must include realistic, generated, and adversarial samples"
     )
+    assert len(set(image_digests_by_fixture.values())) == len(image_digests_by_fixture), (
+        "Each fixture image must be content-distinct to avoid placeholder regressions"
+    )
+    for required_sample_type in REQUIRED_SAMPLE_TYPES:
+        assert image_digests_by_type.get(required_sample_type), (
+            f"Missing image coverage for sample_type={required_sample_type}"
+        )

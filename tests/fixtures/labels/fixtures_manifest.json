@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "description": "Hermetic offline fixture dataset for alcohol label verification.",
-  "generated_at_utc": "2026-04-30T02:56:59Z",
+  "generated_at_utc": "2026-04-30T03:00:05Z",
   "fixtures": [
     {
       "fixture_id": "realistic_clean_lager",
