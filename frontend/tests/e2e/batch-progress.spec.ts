@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("batch upload shows progress and enables report download action", async ({
+test("batch upload shows progress and performs report download action", async ({
   page,
 }) => {
   let reportReads = 0;
@@ -56,4 +56,9 @@ test("batch upload shows progress and enables report download action", async ({
 
   const reportAction = page.getByRole("button", { name: "Download batch report" });
   await expect(reportAction).toBeEnabled();
+
+  const downloadPromise = page.waitForEvent("download");
+  await reportAction.click();
+  const download = await downloadPromise;
+  await expect(download.suggestedFilename()).toBe("job-123-report.json");
 });
