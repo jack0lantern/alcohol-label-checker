@@ -378,3 +378,16 @@ button:disabled {
   50% { opacity: 1; transform: scale(1.2); }
   100% { opacity: 0.5; transform: scale(0.8); }
 }
+
+.batch-drop-zone {
+  border: 2px dashed var(--color-border, #ccc);
+  padding: var(--spacing-lg, 1.5rem);
+  text-align: center;
+  border-radius: 8px;
+  margin-bottom: var(--spacing-md, 1rem);
+}
+.batch-pickers {
+  display: flex;
+  gap: var(--spacing-sm, 0.5rem);
+  margin-bottom: var(--spacing-md, 1rem);
+}

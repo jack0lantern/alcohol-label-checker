@@ -1,190 +1,233 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { apiUrl, batchEventsWebSocketUrl, unreachableApiHint } from "../apiClient";
-
-type BatchStartResponse = {
-  job_id: string;
-};
+import { pairFiles, type DroppedFile, type PairingResult } from "../lib/pairing";
 
 type BatchReportResponse = {
   job_id: string;
   status: "queued" | "running" | "completed" | "completed_with_failures";
-  summary: {
-    processed: number;
-    total: number;
-    pass: number;
-    fail: number;
-    review_required: number;
-  };
+  summary: { processed: number; total: number; pass: number; fail: number; review_required: number };
   items: Array<Record<string, unknown>>;
 };
 
+type WorkingState = {
+  fileById: Map<string, DroppedFile>;
+  itemPdfFileId: Map<string, string>; // itemId -> pdf fileId
+  itemLabelFileIds: Map<string, string[]>;
+  itemOverLimit: Map<string, boolean>;
+  orphanPdfFileIds: string[];
+  orphanImageFileIds: string[];
+  ignoredFileIds: string[];
+};
+
+const EMPTY_STATE: WorkingState = {
+  fileById: new Map(),
+  itemPdfFileId: new Map(),
+  itemLabelFileIds: new Map(),
+  itemOverLimit: new Map(),
+  orphanPdfFileIds: [],
+  orphanImageFileIds: [],
+  ignoredFileIds: [],
+};
+
+let nextFileId = 0;
+function generateFileId(): string {
+  nextFileId += 1;
+  return `f${nextFileId}`;
+}
+
+function normalizeRelativePath(file: File): string {
+  const wkrp = (file as unknown as { webkitRelativePath?: string }).webkitRelativePath ?? "";
+  if (wkrp) return wkrp;
+  return file.name;
+}
+
+function mergePairing(prev: WorkingState, addition: PairingResult, fileIds: Map<DroppedFile, string>): WorkingState {
+  const next: WorkingState = {
+    fileById: new Map(prev.fileById),
+    itemPdfFileId: new Map(prev.itemPdfFileId),
+    itemLabelFileIds: new Map(prev.itemLabelFileIds),
+    itemOverLimit: new Map(prev.itemOverLimit),
+    orphanPdfFileIds: [...prev.orphanPdfFileIds],
+    orphanImageFileIds: [...prev.orphanImageFileIds],
+    ignoredFileIds: [...prev.ignoredFileIds],
+  };
+
+  for (const [df, id] of fileIds) {
+    next.fileById.set(id, df);
+  }
+
+  const usedIds = new Set(next.itemPdfFileId.keys());
+  for (const item of addition.items) {
+    let candidate = item.itemId;
+    let suffix = 1;
+    while (usedIds.has(candidate)) {
+      suffix += 1;
+      candidate = `${item.itemId}-${suffix}`;
+    }
+    usedIds.add(candidate);
+    next.itemPdfFileId.set(candidate, fileIds.get(item.pdf)!);
+    next.itemLabelFileIds.set(
+      candidate,
+      item.labels.map((l) => fileIds.get(l)!),
+    );
+    next.itemOverLimit.set(candidate, item.isOverLabelLimit);
+  }
+
+  for (const orphan of addition.orphanPdfs) {
+    next.orphanPdfFileIds.push(fileIds.get(orphan)!);
+  }
+  for (const orphan of addition.orphanImages) {
+    next.orphanImageFileIds.push(fileIds.get(orphan)!);
+  }
+  for (const ignored of addition.ignoredFiles) {
+    next.ignoredFileIds.push(fileIds.get(ignored)!);
+  }
+
+  return next;
+}
+
 function BatchUpload() {
-  const [mappingFile, setMappingFile] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [progressText, setProgressText] = useState<string | null>(null);
-  const [reportReady, setReportReady] = useState(false);
+  const [state, setState] = useState<WorkingState>(EMPTY_STATE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const websocketRef = useRef<WebSocket | null>(null);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const filesInputRef = useRef<HTMLInputElement | null>(null);
 
-  const clearSocket = () => {
-    if (websocketRef.current == null) {
-      return;
+  const summary = useMemo(() => {
+    let pdfCount = 0;
+    let imageCount = 0;
+    for (const f of state.fileById.values()) {
+      const ext = f.relativePath.toLowerCase();
+      if (ext.endsWith(".pdf")) pdfCount += 1;
+      else if (ext.match(/\.(png|jpe?g|webp)$/)) imageCount += 1;
     }
+    return { total: state.fileById.size, pdfCount, imageCount };
+  }, [state.fileById]);
 
-    websocketRef.current.close();
-    websocketRef.current = null;
+  const ingestFiles = (rawFiles: FileList | File[]) => {
+    setErrorMessage(null);
+    const droppedFiles: DroppedFile[] = [];
+    const fileIds = new Map<DroppedFile, string>();
+    for (const f of Array.from(rawFiles)) {
+      const df: DroppedFile = { file: f, relativePath: normalizeRelativePath(f) };
+      droppedFiles.push(df);
+      fileIds.set(df, generateFileId());
+    }
+    const result = pairFiles(droppedFiles);
+    setState((prev) => mergePairing(prev, result, fileIds));
   };
 
-  useEffect(() => {
-    return () => {
-      clearSocket();
-    };
-  }, []);
-
-  const startBatchCheck = async () => {
-    if (mappingFile == null || isSubmitting) {
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setJobId(null);
-    setReportReady(false);
-    setProgressText(null);
-    clearSocket();
-
-    try {
-      const batchJson = JSON.parse(await mappingFile.text()) as { items: unknown[] };
-      const createResponse = await fetch(apiUrl("/verify/batch"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(batchJson),
-      });
-
-      if (!createResponse.ok) {
-        throw new Error("Batch verification failed");
-      }
-
-      const createBody = (await createResponse.json()) as BatchStartResponse;
-      setJobId(createBody.job_id);
-      const ws = new WebSocket(batchEventsWebSocketUrl(createBody.job_id));
-      websocketRef.current = ws;
-
-      ws.addEventListener("message", (event) => {
-        let body: Record<string, unknown> | null = null;
-        try {
-          body = JSON.parse(event.data) as Record<string, unknown>;
-        } catch {
-          return;
-        }
-
-        const processed = body.processed;
-        const total = body.total;
-        if (typeof processed === "number" && typeof total === "number") {
-          setProgressText(`Batch progress: ${processed}/${total}`);
-        }
-
-        const eventType = body.event_type;
-        if (eventType === "job_completed") {
-          setReportReady(true);
-          clearSocket();
-        }
-      });
-
-      ws.addEventListener("error", () => {
-        setErrorMessage("Batch progress stream failed");
-      });
-    } catch (error) {
-      const message =
-        error instanceof TypeError && error.message === "Failed to fetch"
-          ? `Unable to reach the API. ${unreachableApiHint()}`
-          : error instanceof Error
-            ? error.message
-            : "Batch verification failed";
-      setErrorMessage(message);
-    } finally {
-      setIsSubmitting(false);
-    }
+  const onFolderPicked = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.currentTarget.files;
+    if (files) ingestFiles(files);
+    event.currentTarget.value = "";
   };
 
-  const downloadBatchReport = async () => {
-    if (jobId == null) {
-      return;
-    }
+  const onFilesPicked = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.currentTarget.files;
+    if (files) ingestFiles(files);
+    event.currentTarget.value = "";
+  };
 
-    setIsDownloading(true);
-    setErrorMessage(null);
-
-    try {
-      const response = await fetch(apiUrl(`/verify/batch/${jobId}/report?purge=true`));
-      if (!response.ok) {
-        throw new Error("Batch report request failed");
+  const onDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const items = event.dataTransfer.items;
+    if (items && items.length > 0) {
+      const collected: File[] = [];
+      const promises: Promise<void>[] = [];
+      for (const it of Array.from(items)) {
+        const entry = (it as DataTransferItem & { webkitGetAsEntry?: () => FileSystemEntry | null }).webkitGetAsEntry?.();
+        if (entry) {
+          promises.push(walkEntry(entry, "", collected));
+        } else {
+          const file = it.getAsFile();
+          if (file) collected.push(file);
+        }
       }
-
-      const report = (await response.json()) as BatchReportResponse;
-      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${report.job_id}-report.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      const message =
-        error instanceof TypeError && error.message === "Failed to fetch"
-          ? `Unable to reach the API. ${unreachableApiHint()}`
-          : error instanceof Error
-            ? error.message
-            : "Batch report request failed";
-      setErrorMessage(message);
-    } finally {
-      setIsDownloading(false);
+      Promise.all(promises).then(() => ingestFiles(collected));
+    } else if (event.dataTransfer.files) {
+      ingestFiles(event.dataTransfer.files);
     }
   };
 
   return (
     <section aria-label="Batch upload">
       <h2>Batch Check</h2>
-      
-      <div className="file-drop-area" onClick={() => document.getElementById("batch-mapping-json")?.click()}>
-        <span className="file-name">{mappingFile ? mappingFile.name : <span className="placeholder">Select Batch Mapping JSON</span>}</span>
-      </div>
-      <input
-        id="batch-mapping-json"
-        type="file"
-        accept=".json,application/json"
-        onChange={(event) => {
-          const nextFile = event.currentTarget.files?.[0] ?? null;
-          setMappingFile(nextFile);
-        }}
-      />
 
-      <button type="button" disabled={mappingFile == null || isSubmitting} onClick={startBatchCheck}>
-        {isSubmitting ? "Starting batch check..." : "Start batch check"}
-      </button>
+      <div
+        className="batch-drop-zone"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onDrop}
+      >
+        {state.fileById.size === 0 ? (
+          <span className="placeholder">Drop a folder or files, or use the buttons below</span>
+        ) : (
+          <span className="batch-summary">
+            {summary.total} files: {summary.pdfCount} PDFs, {summary.imageCount} images
+            {state.ignoredFileIds.length > 0 ? ` (${state.ignoredFileIds.length} ignored)` : ""}
+          </span>
+        )}
+      </div>
+
+      <div className="batch-pickers">
+        <button type="button" onClick={() => folderInputRef.current?.click()}>Pick folder</button>
+        <button type="button" onClick={() => filesInputRef.current?.click()}>Pick files</button>
+        <input
+          ref={folderInputRef}
+          type="file"
+          // @ts-expect-error webkitdirectory is non-standard but supported by Chrome/Edge/Firefox
+          webkitdirectory=""
+          multiple
+          hidden
+          onChange={onFolderPicked}
+        />
+        <input
+          ref={filesInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.png,.jpg,.jpeg,.webp"
+          hidden
+          onChange={onFilesPicked}
+        />
+      </div>
 
       {errorMessage != null ? <div className="error-message" role="alert">{errorMessage}</div> : null}
-
-      {(jobId != null || progressText != null) ? (
-        <div className="result-panel">
-          <h3>Job Status</h3>
-          {jobId != null ? <div className="value-box" style={{ marginBottom: 'var(--spacing-sm)' }}><span className="value-label">Job ID</span>{jobId}</div> : null}
-          {progressText != null ? <div className="progress-text">{progressText}</div> : null}
-          
-          {reportReady ? (
-            <button type="button" disabled={jobId == null || isDownloading} onClick={() => void downloadBatchReport()}>
-              {isDownloading ? "Downloading batch report..." : "Download batch report"}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </section>
   );
+}
+
+async function walkEntry(entry: FileSystemEntry, parentPath: string, out: File[]): Promise<void> {
+  if (entry.isFile) {
+    const fileEntry = entry as FileSystemFileEntry;
+    return new Promise((resolve) => {
+      fileEntry.file((file) => {
+        const path = parentPath ? `${parentPath}/${file.name}` : file.name;
+        Object.defineProperty(file, "webkitRelativePath", { value: path });
+        out.push(file);
+        resolve();
+      });
+    });
+  }
+  if (entry.isDirectory) {
+    const dirEntry = entry as FileSystemDirectoryEntry;
+    const reader = dirEntry.createReader();
+    const subPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
+    return new Promise((resolve) => {
+      const collected: FileSystemEntry[] = [];
+      const readBatch = () => {
+        reader.readEntries(async (entries) => {
+          if (entries.length === 0) {
+            await Promise.all(collected.map((e) => walkEntry(e, subPath, out)));
+            resolve();
+          } else {
+            collected.push(...entries);
+            readBatch();
+          }
+        });
+      };
+      readBatch();
+    });
+  }
 }
 
 export default BatchUpload;
