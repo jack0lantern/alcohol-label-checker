@@ -79,7 +79,13 @@ def test_batch_websocket_streams_progress_events() -> None:
     assert events[0]["job_id"] == job_id
     item_processed_events = [event for event in events if event["event_type"] == "item_processed"]
     assert len(item_processed_events) == 3
-    processed_outcome_matrix = {event["item_id"]: event["status"] for event in item_processed_events}
+    processed_lifecycle_matrix = {event["item_id"]: event["status"] for event in item_processed_events}
+    assert processed_lifecycle_matrix == {
+        "item-1": "completed",
+        "item-2": "completed",
+        "item-3": "review_required",
+    }
+    processed_outcome_matrix = {event["item_id"]: event["overall_status"] for event in item_processed_events}
     assert processed_outcome_matrix == {
         "item-1": "pass",
         "item-2": "fail",

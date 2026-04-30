@@ -129,8 +129,8 @@ def _process_job(job_id: str, items: list[dict[str, Any]]) -> None:
         _process_item(record, item_state, item_payload)
 
     with record.lock:
-        has_review_required = any(item.status == "review_required" for item in record.items)
-        record.status = "completed_with_failures" if has_review_required else "completed"
+        has_failure_outcome = any(item.overall_status in {"fail", "review_required"} for item in record.items)
+        record.status = "completed_with_failures" if has_failure_outcome else "completed"
         processed = record.processed
         total = record.total
         status = record.status
@@ -167,6 +167,7 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
             if attempt == _MAX_ATTEMPTS_PER_ITEM:
                 with record.lock:
                     item_state.status = "review_required"
+                    item_state.overall_status = "review_required"
                     item_state.error = str(error)
                     record.processed += 1
                     processed = record.processed
@@ -178,13 +179,14 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
                     processed=processed,
                     total=total,
                     status=item_state.status,
+                    overall_status=item_state.overall_status,
                 )
                 return
             continue
 
         with record.lock:
             item_state.overall_status = result["status"]
-            item_state.status = item_state.overall_status
+            item_state.status = "completed"
             item_state.field_results = result["field_results"]
             item_state.error = None
             record.processed += 1
@@ -198,6 +200,7 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
             processed=processed,
             total=total,
             status=item_state.status,
+            overall_status=item_state.overall_status,
         )
         return
 
@@ -254,6 +257,7 @@ def _emit_event(
     processed: int | None = None,
     total: int | None = None,
     status: str | None = None,
+    overall_status: MatchStatus | None = None,
 ) -> None:
     with record.lock:
         event: dict[str, Any] = {
@@ -265,6 +269,8 @@ def _emit_event(
         }
         if item_id is not None:
             event["item_id"] = item_id
+        if overall_status is not None:
+            event["overall_status"] = overall_status
         record.events.append(event)
 
 
