@@ -1,4 +1,5 @@
 import json
+from base64 import b64decode
 import threading
 import time
 import uuid
@@ -217,7 +218,7 @@ def _verify_item_payload(item_payload: dict[str, Any]) -> dict[str, Any]:
     form_payload = item_payload.get("form_payload")
     label_payload = item_payload.get("label_payload")
     form_bytes = bytearray(json.dumps(form_payload).encode("utf-8"))
-    label_bytes = bytearray(json.dumps(label_payload).encode("utf-8"))
+    label_bytes = bytearray(_coerce_label_bytes(label_payload))
     extracted_payloads: list[Any] = []
 
     try:
@@ -235,6 +236,14 @@ def _verify_item_payload(item_payload: dict[str, Any]) -> dict[str, Any]:
         }
     finally:
         clear_single_artifacts(form_bytes, label_bytes, extracted_payloads)
+
+
+def _coerce_label_bytes(label_payload: Any) -> bytes:
+    if isinstance(label_payload, dict):
+        raw_image = label_payload.get("image_base64")
+        if isinstance(raw_image, str):
+            return b64decode(raw_image)
+    return json.dumps(label_payload).encode("utf-8")
 
 
 def _compute_overall_status(field_results: dict[str, FieldResult]) -> MatchStatus:

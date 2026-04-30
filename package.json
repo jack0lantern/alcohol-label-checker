@@ -1,0 +1,7 @@
+{
+  "name": "alcohol-label-checker",
+  "private": true,
+  "scripts": {
+    "test:e2e": "npm run test:e2e --prefix frontend --"
+  }
+}

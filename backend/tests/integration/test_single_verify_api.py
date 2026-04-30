@@ -1,8 +1,12 @@
 import json
+from difflib import SequenceMatcher
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+
+FIXTURES_ROOT = Path(__file__).resolve().parents[3] / "tests/fixtures/labels"
 
 
 def test_single_verify_endpoint_returns_field_results() -> None:
@@ -79,3 +83,49 @@ def test_single_verify_endpoint_falls_back_for_binary_uploads() -> None:
         assert field_result["status"] == "review_required"
         assert field_result["expected_value"] is None
         assert field_result["extracted_value"] is None
+
+
+def test_single_verify_uses_real_ocr_for_fixture_image() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    form_payload = json.loads((FIXTURES_ROOT / "forms/realistic_clean_lager.json").read_text(encoding="utf-8"))
+    image_bytes = (FIXTURES_ROOT / "images/realistic_clean_lager.png").read_bytes()
+
+    response = client.post(
+        "/verify/single",
+        files={
+            "form_pdf": ("form.pdf", json.dumps(form_payload).encode("utf-8"), "application/pdf"),
+            "label_image": ("label.png", image_bytes, "image/png"),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] in {"pass", "fail", "review_required"}
+    assert _similarity(
+        form_payload["brand_name"],
+        body["field_results"]["brand_name"]["extracted_value"],
+    ) >= 0.8
+    assert _similarity(
+        form_payload["class_type"],
+        body["field_results"]["class_type"]["extracted_value"],
+    ) >= 0.8
+    assert _similarity(
+        form_payload["alcohol_content"],
+        body["field_results"]["alcohol_content"]["extracted_value"],
+    ) >= 0.55
+    assert _similarity(
+        form_payload["net_contents"],
+        body["field_results"]["net_contents"]["extracted_value"],
+    ) >= 0.6
+    assert _similarity(
+        form_payload["government_warning"],
+        body["field_results"]["government_warning"]["extracted_value"],
+    ) >= 0.8
+
+
+def _similarity(expected: str, extracted: str | None) -> float:
+    if extracted is None:
+        return 0.0
+    return SequenceMatcher(None, expected.casefold(), extracted.casefold()).ratio()

@@ -54,6 +54,8 @@ def forbid_disk_writes():
         return original_open(file, mode, *args, **kwargs)
 
     def _guarded_io_open(file: Any, mode: str = "r", *args: Any, **kwargs: Any):
+        if isinstance(file, int):
+            return original_io_open(file, mode, *args, **kwargs)
         if _is_write_mode(mode):
             raise DiskWriteViolation(f"Disk write attempted through io.open() for: {file}")
         return original_io_open(file, mode, *args, **kwargs)

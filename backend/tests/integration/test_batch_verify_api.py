@@ -1,8 +1,14 @@
 import time
+import json
+from difflib import SequenceMatcher
+from base64 import b64encode
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+
+FIXTURES_ROOT = Path(__file__).resolve().parents[3] / "tests/fixtures/labels"
 
 
 def test_batch_verify_starts_job_and_builds_report() -> None:
@@ -207,6 +213,64 @@ def test_batch_report_download_can_purge_completed_job() -> None:
     assert missing_response.status_code == 404
 
 
+def test_batch_verify_uses_real_ocr_for_fixture_images() -> None:
+    app = create_app()
+    client = TestClient(app)
+
+    realistic_form = json.loads((FIXTURES_ROOT / "forms/realistic_clean_lager.json").read_text(encoding="utf-8"))
+    realistic_image = (FIXTURES_ROOT / "images/realistic_clean_lager.png").read_bytes()
+    adversarial_form = json.loads((FIXTURES_ROOT / "forms/adversarial_wrong_abv.json").read_text(encoding="utf-8"))
+    adversarial_image = (FIXTURES_ROOT / "images/adversarial_wrong_abv.png").read_bytes()
+
+    response = client.post(
+        "/verify/batch",
+        json={
+            "items": [
+                {
+                    "item_id": "ocr-pass",
+                    "form_payload": realistic_form,
+                    "label_payload": {"image_base64": b64encode(realistic_image).decode("ascii")},
+                },
+                {
+                    "item_id": "ocr-fail",
+                    "form_payload": adversarial_form,
+                    "label_payload": {"image_base64": b64encode(adversarial_image).decode("ascii")},
+                },
+            ]
+        },
+    )
+    assert response.status_code == 202
+    job_id = response.json()["job_id"]
+
+    completed_report = _wait_for_completed_report(client, job_id)
+    by_id = {item["item_id"]: item for item in completed_report["items"]}
+
+    assert by_id["ocr-pass"]["status"] == "completed"
+    assert by_id["ocr-pass"]["overall_status"] in {"pass", "fail", "review_required"}
+    assert by_id["ocr-fail"]["status"] == "completed"
+    assert by_id["ocr-fail"]["overall_status"] in {"fail", "review_required"}
+    assert _similarity(
+        realistic_form["brand_name"],
+        by_id["ocr-pass"]["field_results"]["brand_name"]["extracted_value"],
+    ) >= 0.8
+    assert _similarity(
+        realistic_form["class_type"],
+        by_id["ocr-pass"]["field_results"]["class_type"]["extracted_value"],
+    ) >= 0.8
+    assert _similarity(
+        realistic_form["alcohol_content"],
+        by_id["ocr-pass"]["field_results"]["alcohol_content"]["extracted_value"],
+    ) >= 0.55
+    assert _similarity(
+        realistic_form["net_contents"],
+        by_id["ocr-pass"]["field_results"]["net_contents"]["extracted_value"],
+    ) >= 0.6
+    assert any(
+        field_result["extracted_value"] is not None
+        for field_result in by_id["ocr-fail"]["field_results"].values()
+    )
+
+
 def _wait_for_completed_report(client: TestClient, job_id: str) -> dict[str, object]:
     timeout_at = time.time() + 5
     while time.time() < timeout_at:
@@ -217,3 +281,9 @@ def _wait_for_completed_report(client: TestClient, job_id: str) -> dict[str, obj
             return body
         time.sleep(0.05)
     raise AssertionError("Timed out waiting for completed batch report")
+
+
+def _similarity(expected: str, extracted: str | None) -> float:
+    if extracted is None:
+        return 0.0
+    return SequenceMatcher(None, expected.casefold(), extracted.casefold()).ratio()

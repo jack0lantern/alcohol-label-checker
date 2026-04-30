@@ -4,16 +4,13 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
-import struct
-import zlib
-from binascii import crc32
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
-
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+from PIL import Image, ImageDraw
 SAMPLE_TYPE_BASE_COLORS = {
     "realistic": (76, 114, 176),
     "generated": (78, 163, 113),
@@ -202,43 +199,41 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def _png_chunk(chunk_type: bytes, data: bytes) -> bytes:
-    chunk_length = struct.pack("!I", len(data))
-    chunk_crc = struct.pack("!I", crc32(chunk_type + data) & 0xFFFFFFFF)
-    return chunk_length + chunk_type + data + chunk_crc
-
-
-def _build_png_bytes(width: int, height: int, rgb_rows: list[bytes]) -> bytes:
-    ihdr = struct.pack("!IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    raw_image_data = b"".join(b"\x00" + row for row in rgb_rows)
-    compressed_data = zlib.compress(raw_image_data, level=9)
-    return b"".join(
-        [
-            PNG_SIGNATURE,
-            _png_chunk(b"IHDR", ihdr),
-            _png_chunk(b"IDAT", compressed_data),
-            _png_chunk(b"IEND", b""),
-        ]
-    )
-
-
 def _build_distinct_image_bytes(spec: FixtureSpec, fixture_index: int) -> bytes:
-    width = 16 + fixture_index
-    height = 10 + (fixture_index % 3)
+    width = 1400
+    height = 900
     seed = sum(ord(char) for char in spec.fixture_id)
     base_color = SAMPLE_TYPE_BASE_COLORS.get(spec.sample_type, (120, 120, 120))
+    background = (
+        min(base_color[0] + 150, 255),
+        min(base_color[1] + 150, 255),
+        min(base_color[2] + 150, 255),
+    )
 
-    rgb_rows: list[bytes] = []
-    for y_axis in range(height):
-        row = bytearray()
-        for x_axis in range(width):
-            red = (base_color[0] + (x_axis * 11) + (y_axis * 7) + seed) % 256
-            green = (base_color[1] + (x_axis * 5) + (y_axis * 13) + seed) % 256
-            blue = (base_color[2] + (x_axis * 17) + (y_axis * 3) + seed) % 256
-            row.extend((red, green, blue))
-        rgb_rows.append(bytes(row))
+    image = Image.new("RGB", (width, height), color=background)
+    draw = ImageDraw.Draw(image)
 
-    return _build_png_bytes(width, height, rgb_rows)
+    text_lines = [
+        f"Brand Name: {spec.extracted['brand_name']}",
+        f"Class/Type: {spec.extracted['class_type']}",
+        f"Alcohol Content: {spec.extracted['alcohol_content']}",
+        f"Net Contents: {spec.extracted['net_contents']}",
+        f"Government Warning: {spec.extracted['government_warning']}",
+    ]
+
+    y_axis = 40
+    for line in text_lines:
+        draw.text((40, y_axis), line, fill=(20, 20, 20))
+        y_axis += 55
+
+    # Draw deterministic guide lines so each fixture image stays distinct.
+    for index in range(6):
+        offset = (seed + index * 31 + fixture_index * 17) % height
+        draw.line((0, offset, width, (offset + 80) % height), fill=base_color, width=2)
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def _repo_relative_path(path: Path, repo_root: Path) -> str:
