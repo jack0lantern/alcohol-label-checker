@@ -43,12 +43,23 @@ def test_batch_websocket_streams_progress_events() -> None:
                         "government_warning": warning_text,
                     },
                     "label_payload": {
-                        "brand_name": "B",
+                        "brand_name": "DIFFERENT",
                         "class_type": "MALT BEVERAGE",
                         "alcohol_content": "5% alc/vol",
                         "net_contents": "12 fl oz",
                         "government_warning": warning_text,
                     },
+                },
+                {
+                    "item_id": "item-3",
+                    "form_payload": {
+                        "brand_name": "C",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                    "label_payload": "invalid-json-object",
                 },
             ]
         },
@@ -66,6 +77,14 @@ def test_batch_websocket_streams_progress_events() -> None:
 
     assert len(events) >= 3
     assert events[0]["job_id"] == job_id
-    assert any(event["event_type"] == "item_processed" for event in events)
+    item_processed_events = [event for event in events if event["event_type"] == "item_processed"]
+    assert len(item_processed_events) == 3
+    processed_outcome_matrix = {event["item_id"]: event["status"] for event in item_processed_events}
+    assert processed_outcome_matrix == {
+        "item-1": "pass",
+        "item-2": "fail",
+        "item-3": "review_required",
+    }
     assert events[-1]["event_type"] == "job_completed"
+    assert events[-1]["status"] == "completed_with_failures"
     assert events[-1]["processed"] == events[-1]["total"]

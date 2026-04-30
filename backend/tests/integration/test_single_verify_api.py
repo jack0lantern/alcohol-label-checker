@@ -37,7 +37,15 @@ def test_single_verify_endpoint_returns_field_results() -> None:
 
     assert response.status_code == 200
     body = response.json()
+    assert set(body) == {"status", "field_results"}
     assert body["status"] == "pass"
+    assert set(body["field_results"]) == {
+        "brand_name",
+        "class_type",
+        "alcohol_content",
+        "net_contents",
+        "government_warning",
+    }
     assert body["field_results"]["brand_name"]["status"] == "pass"
     assert body["field_results"]["class_type"]["status"] == "pass"
     assert body["field_results"]["alcohol_content"]["status"] == "pass"

@@ -183,8 +183,8 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
             continue
 
         with record.lock:
-            item_state.status = "completed"
             item_state.overall_status = result["status"]
+            item_state.status = item_state.overall_status
             item_state.field_results = result["field_results"]
             item_state.error = None
             record.processed += 1

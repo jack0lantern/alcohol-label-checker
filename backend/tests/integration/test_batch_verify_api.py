@@ -46,6 +46,23 @@ def test_batch_verify_starts_job_and_builds_report() -> None:
                     },
                     "label_payload": "invalid-json-object",
                 },
+                {
+                    "item_id": "item-fail",
+                    "form_payload": {
+                        "brand_name": "Acme Brewing",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                    "label_payload": {
+                        "brand_name": "Different Brewing",
+                        "class_type": "MALT BEVERAGE",
+                        "alcohol_content": "5% alc/vol",
+                        "net_contents": "12 fl oz",
+                        "government_warning": warning_text,
+                    },
+                },
             ]
         },
     )
@@ -61,13 +78,19 @@ def test_batch_verify_starts_job_and_builds_report() -> None:
     completed_report = _wait_for_completed_report(client, job_id)
     assert completed_report["job_id"] == job_id
     assert completed_report["status"] == "completed_with_failures"
-    assert completed_report["summary"]["processed"] == 2
-    assert completed_report["summary"]["total"] == 2
+    assert completed_report["summary"]["processed"] == 3
+    assert completed_report["summary"]["total"] == 3
+    assert completed_report["summary"]["pass"] == 1
+    assert completed_report["summary"]["fail"] == 1
     assert completed_report["summary"]["review_required"] == 1
 
     by_id = {item["item_id"]: item for item in completed_report["items"]}
-    assert by_id["item-pass"]["status"] == "completed"
+    assert by_id["item-pass"]["status"] == "pass"
+    assert by_id["item-pass"]["overall_status"] == "pass"
+    assert by_id["item-fail"]["status"] == "fail"
+    assert by_id["item-fail"]["overall_status"] == "fail"
     assert by_id["item-retry-then-review"]["status"] == "review_required"
+    assert by_id["item-retry-then-review"]["overall_status"] is None
     assert by_id["item-retry-then-review"]["attempts"] == 2
 
 
