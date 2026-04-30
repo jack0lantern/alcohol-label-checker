@@ -150,6 +150,22 @@ function BatchUpload() {
     }
   };
 
+  const removeLabelFromItem = (itemId: string, labelId: string) => {
+    setState((prev) => {
+      const newLabelIds = (prev.itemLabelFileIds.get(itemId) ?? []).filter((id) => id !== labelId);
+      const newItemLabelFileIds = new Map(prev.itemLabelFileIds);
+      newItemLabelFileIds.set(itemId, newLabelIds);
+      const newItemOverLimit = new Map(prev.itemOverLimit);
+      newItemOverLimit.set(itemId, newLabelIds.length > 10);
+      return {
+        ...prev,
+        itemLabelFileIds: newItemLabelFileIds,
+        itemOverLimit: newItemOverLimit,
+        orphanImageFileIds: [...prev.orphanImageFileIds, labelId],
+      };
+    });
+  };
+
   return (
     <section aria-label="Batch upload">
       <h2>Batch Check</h2>
@@ -190,6 +206,37 @@ function BatchUpload() {
           onChange={onFilesPicked}
         />
       </div>
+
+      {state.itemPdfFileId.size > 0 ? (
+        <div className="batch-items">
+          <h3>Paired items</h3>
+          {Array.from(state.itemPdfFileId.keys()).map((itemId) => {
+            const pdfId = state.itemPdfFileId.get(itemId)!;
+            const labelIds = state.itemLabelFileIds.get(itemId) ?? [];
+            const overLimit = state.itemOverLimit.get(itemId) ?? false;
+            const pdfFile = state.fileById.get(pdfId)!;
+            return (
+              <div className={`batch-item-row${overLimit ? " over-limit" : ""}`} key={itemId}>
+                <div className="batch-item-pdf">{pdfFile.relativePath}</div>
+                <div className="batch-item-labels">
+                  {labelIds.map((lid) => {
+                    const f = state.fileById.get(lid)!;
+                    return (
+                      <span key={lid} className="label-chip">
+                        {f.relativePath}
+                        {overLimit ? (
+                          <button type="button" aria-label={`Remove ${f.relativePath}`} onClick={() => removeLabelFromItem(itemId, lid)}>×</button>
+                        ) : null}
+                      </span>
+                    );
+                  })}
+                  <span className={`label-count-badge${overLimit ? " over-limit" : ""}`}>{labelIds.length}/10</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {errorMessage != null ? <div className="error-message" role="alert">{errorMessage}</div> : null}
     </section>
