@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { apiUrl, batchEventsWebSocketUrl, unreachableApiHint } from "../apiClient";
+
 type BatchStartResponse = {
   job_id: string;
 };
@@ -56,7 +58,7 @@ function BatchUpload() {
 
     try {
       const batchJson = JSON.parse(await mappingFile.text()) as { items: unknown[] };
-      const createResponse = await fetch("/verify/batch", {
+      const createResponse = await fetch(apiUrl("/verify/batch"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -70,8 +72,7 @@ function BatchUpload() {
 
       const createBody = (await createResponse.json()) as BatchStartResponse;
       setJobId(createBody.job_id);
-      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${wsProtocol}://${window.location.host}/verify/batch/${createBody.job_id}/events`);
+      const ws = new WebSocket(batchEventsWebSocketUrl(createBody.job_id));
       websocketRef.current = ws;
 
       ws.addEventListener("message", (event) => {
@@ -99,7 +100,12 @@ function BatchUpload() {
         setErrorMessage("Batch progress stream failed");
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Batch verification failed";
+      const message =
+        error instanceof TypeError && error.message === "Failed to fetch"
+          ? `Unable to reach the API. ${unreachableApiHint()}`
+          : error instanceof Error
+            ? error.message
+            : "Batch verification failed";
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -115,7 +121,7 @@ function BatchUpload() {
     setErrorMessage(null);
 
     try {
-      const response = await fetch(`/verify/batch/${jobId}/report?purge=true`);
+      const response = await fetch(apiUrl(`/verify/batch/${jobId}/report?purge=true`));
       if (!response.ok) {
         throw new Error("Batch report request failed");
       }
@@ -129,7 +135,12 @@ function BatchUpload() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Batch report request failed";
+      const message =
+        error instanceof TypeError && error.message === "Failed to fetch"
+          ? `Unable to reach the API. ${unreachableApiHint()}`
+          : error instanceof Error
+            ? error.message
+            : "Batch report request failed";
       setErrorMessage(message);
     } finally {
       setIsDownloading(false);

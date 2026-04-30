@@ -17,7 +17,9 @@ def test_batch_verify_starts_job_and_builds_report() -> None:
 
     warning_text = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
 
     response = client.post(
@@ -106,7 +108,9 @@ def test_batch_verify_marks_pass_and_fail_only_job_as_completed_with_failures() 
 
     warning_text = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
 
     response = client.post(
@@ -172,7 +176,9 @@ def test_batch_report_download_can_purge_completed_job() -> None:
 
     warning_text = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
 
     response = client.post(
@@ -277,7 +283,9 @@ def test_batch_verify_rejects_item_with_more_than_ten_images() -> None:
 
     warning_text = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     response = client.post(
         "/verify/batch",
@@ -307,7 +315,9 @@ def test_batch_verify_aggregates_best_results_from_multiple_images() -> None:
 
     warning_text = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     response = client.post(
         "/verify/batch",

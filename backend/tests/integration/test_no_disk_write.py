@@ -22,7 +22,9 @@ def test_single_verify_rejects_disk_write_attempts(monkeypatch) -> None:  # type
             net_contents="12 fl oz",
             government_warning=(
                 "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-                "alcoholic beverages during pregnancy because of the risk of birth defects."
+                "alcoholic beverages during pregnancy because of the risk of birth defects. "
+                "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+                "operate machinery, and may cause health problems."
             ),
         )
 
@@ -38,7 +40,9 @@ def test_single_verify_rejects_disk_write_attempts(monkeypatch) -> None:  # type
         "net_contents": "12 fl oz",
         "government_warning": (
             "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-            "alcoholic beverages during pregnancy because of the risk of birth defects."
+            "alcoholic beverages during pregnancy because of the risk of birth defects. "
+            "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+            "operate machinery, and may cause health problems."
         ),
     }
 
@@ -67,7 +71,9 @@ def test_batch_verify_marks_item_review_required_on_disk_write_attempt(monkeypat
             net_contents="12 fl oz",
             government_warning=(
                 "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-                "alcoholic beverages during pregnancy because of the risk of birth defects."
+                "alcoholic beverages during pregnancy because of the risk of birth defects. "
+                "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+                "operate machinery, and may cause health problems."
             ),
         )
 
@@ -83,7 +89,9 @@ def test_batch_verify_marks_item_review_required_on_disk_write_attempt(monkeypat
         "net_contents": "12 fl oz",
         "government_warning": (
             "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-            "alcoholic beverages during pregnancy because of the risk of birth defects."
+            "alcoholic beverages during pregnancy because of the risk of birth defects. "
+            "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+            "operate machinery, and may cause health problems."
         ),
     }
 

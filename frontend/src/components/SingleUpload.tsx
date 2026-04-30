@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 
+import { apiUrl, unreachableApiHint } from "../apiClient";
+
 type SingleVerifyStatus = "pass" | "fail" | "review_required";
 
 type SingleVerifyResponse = {
@@ -62,7 +64,7 @@ function SingleUpload() {
     setResult(null);
 
     try {
-      const response = await fetch("/verify/single", {
+      const response = await fetch(apiUrl("/verify/single"), {
         method: "POST",
         body: payload,
       });
@@ -74,7 +76,12 @@ function SingleUpload() {
       const body = (await response.json()) as SingleVerifyResponse;
       setResult(body);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Single verification failed";
+      const message =
+        error instanceof TypeError && error.message === "Failed to fetch"
+          ? `Unable to reach the API. ${unreachableApiHint()}`
+          : error instanceof Error
+            ? error.message
+            : "Single verification failed";
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);

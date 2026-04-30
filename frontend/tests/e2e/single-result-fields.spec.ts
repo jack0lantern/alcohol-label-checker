@@ -28,9 +28,9 @@ const realisticCleanLagerVerifyBody = {
     },
     government_warning: {
       expected_value:
-        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects.",
+        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
       extracted_value:
-        "GOVERNMENT WARNING: (1) According tothe Surgeon General women should notdrinkaleaholic beverages during pregnancy because ofthe risk of bith defects",
+        "GOVERNMENT WARNING: (1) According tothe Surgeon General women should notdrinkaleaholic beverages during pregnancy because ofthe risk of bith defects (2) Consumption of aleaholic beverag",
       status: "fail" as const,
     },
     net_contents: {
@@ -60,9 +60,9 @@ const realisticCleanLagerVerifyBody = {
         },
         government_warning: {
           expected_value:
-            "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects.",
+            "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.",
           extracted_value:
-            "GOVERNMENT WARNING: (1) According tothe Surgeon General women should notdrinkaleaholic beverages during pregnancy because ofthe risk of bith defects",
+            "GOVERNMENT WARNING: (1) According tothe Surgeon General women should notdrinkaleaholic beverages during pregnancy because ofthe risk of bith defects (2) Consumption of aleaholic beverag",
           status: "fail" as const,
         },
         net_contents: {
@@ -106,7 +106,7 @@ test("single result shows realistic_clean_lager extracted text (not clipped or b
 });
 
 test("extracted column stays visible beside very long expected text (narrow viewport)", async ({ page }) => {
-  const longExpected = `GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. ${"x".repeat(400)}`;
+  const longExpected = `GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems. ${"x".repeat(400)}`;
   const uniqueExtracted = "E2E_EXTRACTED_MARKER_ZZ9";
 
   await page.setViewportSize({ width: 380, height: 900 });

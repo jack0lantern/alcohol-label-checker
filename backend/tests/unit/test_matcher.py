@@ -9,14 +9,22 @@ def test_general_fields_compare_case_insensitively() -> None:
         class_type="MALT BEVERAGE",
         alcohol_content="5% alc/vol",
         net_contents="12 fl oz",
-        government_warning="GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects.",
+        government_warning=(
+            "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic "
+            "beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic "
+            "beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+        ),
     )
     extracted = LabelExtractedFields(
         brand_name="acme brewing",
         class_type="malt beverage",
         alcohol_content="5% ALC/VOL",
         net_contents="12 FL OZ",
-        government_warning="GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects.",
+        government_warning=(
+            "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic "
+            "beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic "
+            "beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
+        ),
     )
 
     result = match_fields(truth, extracted)
@@ -30,7 +38,9 @@ def test_general_fields_compare_case_insensitively() -> None:
 def test_government_warning_exact_match_passes() -> None:
     warning = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     truth = GroundTruthFields(
         brand_name="Acme Brewing",
@@ -55,7 +65,9 @@ def test_government_warning_exact_match_passes() -> None:
 def test_government_warning_whitespace_difference_not_exact_pass() -> None:
     warning = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     truth = GroundTruthFields(
         brand_name="Acme Brewing",
@@ -80,12 +92,11 @@ def test_government_warning_whitespace_difference_not_exact_pass() -> None:
 def test_government_warning_high_similarity_requires_review() -> None:
     truth_warning = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
-    extracted_warning = (
-        "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoh0lic beverages during pregnancy because of the risk of birth defects."
-    )
+    extracted_warning = truth_warning.replace("alcoholic", "alcoh0lic", 1)
     truth = GroundTruthFields(
         brand_name="Acme Brewing",
         class_type="MALT BEVERAGE",
@@ -109,7 +120,9 @@ def test_government_warning_high_similarity_requires_review() -> None:
 def test_government_warning_low_similarity_fails() -> None:
     truth_warning = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     extracted_warning = "Drink responsibly."
     truth = GroundTruthFields(

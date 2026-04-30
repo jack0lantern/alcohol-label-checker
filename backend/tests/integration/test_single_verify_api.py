@@ -20,7 +20,9 @@ def test_single_verify_endpoint_returns_field_results() -> None:
         "net_contents": "12 fl oz",
         "government_warning": (
             "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-            "alcoholic beverages during pregnancy because of the risk of birth defects."
+            "alcoholic beverages during pregnancy because of the risk of birth defects. "
+            "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+            "operate machinery, and may cause health problems."
         ),
     }
     label_payload = {
@@ -125,6 +127,32 @@ def test_single_verify_uses_real_ocr_for_fixture_image() -> None:
     ) >= 0.8
 
 
+def test_single_verify_blank_ttb_pdf_does_not_disable_ocr_on_label() -> None:
+    """Real TTB PDF is binary UTF-8 must not trigger the global null fallback (UnicodeDecodeError path)."""
+    app = create_app()
+    client = TestClient(app)
+
+    pdf_path = FIXTURES_ROOT / "forms/f510031.pdf"
+    image_path = FIXTURES_ROOT / "images/realistic_clean_lager.png"
+    assert pdf_path.is_file()
+
+    response = client.post(
+        "/verify/single",
+        files=[
+            ("form_pdf", ("f510031.pdf", pdf_path.read_bytes(), "application/pdf")),
+            ("label_images", ("label.png", image_path.read_bytes(), "image/png")),
+        ],
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    # Blank form: no JSON ground truth, but label OCR must still populate extracted_value.
+    assert body["field_results"]["brand_name"]["expected_value"] is None
+    extracted = body["field_results"]["brand_name"]["extracted_value"]
+    assert extracted is not None
+    assert len(extracted.strip()) > 0
+
+
 def test_single_verify_rejects_more_than_ten_images() -> None:
     app = create_app()
     client = TestClient(app)
@@ -136,7 +164,9 @@ def test_single_verify_rejects_more_than_ten_images() -> None:
         "net_contents": "12 fl oz",
         "government_warning": (
             "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-            "alcoholic beverages during pregnancy because of the risk of birth defects."
+            "alcoholic beverages during pregnancy because of the risk of birth defects. "
+            "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+            "operate machinery, and may cause health problems."
         ),
     }
     files: list[tuple[str, tuple[str, bytes, str]]] = [
@@ -158,7 +188,9 @@ def test_single_verify_aggregates_best_results_from_multiple_images() -> None:
 
     warning_text = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     form_payload = {
         "brand_name": "Acme Brewing",

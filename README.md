@@ -53,6 +53,8 @@ npm run dev
 
 The frontend assumes the backend is reachable on the same host.
 
+If **Single Check** shows *Failed to fetch* or *Unable to reach the API*: start the backend on port **8000** (see above). In development, requests from `npm run dev` are forwarded to `127.0.0.1:8000` via Vite. `npm run preview` uses the same proxy for `/verify`. For a frontend that talks directly to another origin, build with `VITE_API_BASE_URL` (full URL with no trailing slash) and run the API with something like `ALLOWED_ORIGINS=http://localhost:5173`.
+
 ## Testing
 
 ### Backend

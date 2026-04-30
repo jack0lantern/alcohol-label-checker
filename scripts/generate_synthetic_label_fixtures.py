@@ -34,7 +34,9 @@ class FixtureSpec:
 def _build_fixture_specs() -> list[FixtureSpec]:
     warning = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
-        "alcoholic beverages during pregnancy because of the risk of birth defects."
+        "alcoholic beverages during pregnancy because of the risk of birth defects. "
+        "(2) Consumption of alcoholic beverages impairs your ability to drive a car or "
+        "operate machinery, and may cause health problems."
     )
     return [
         FixtureSpec(
@@ -117,7 +119,7 @@ def _build_fixture_specs() -> list[FixtureSpec]:
                 "class_type": "MALT BEVERAGE",
                 "alcohol_content": "5.8% alc/vol",
                 "net_contents": "12 fl oz",
-                "government_warning": warning.replace("alcoholic", "alcoh0lic"),
+                "government_warning": warning.replace("alcoholic", "alcoh0lic", 1),
             },
             expected={
                 "overall_status": "review_required",
