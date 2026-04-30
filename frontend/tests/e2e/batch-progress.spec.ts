@@ -4,6 +4,7 @@ test("batch upload shows progress and performs report download action", async ({
   page,
 }) => {
   let reportReads = 0;
+  let sawPurgeQuery = false;
 
   await page.addInitScript(() => {
     class FakeWebSocket {
@@ -113,21 +114,10 @@ test("batch upload shows progress and performs report download action", async ({
     });
   });
 
-  await page.route("**/verify/batch/job-123/report", async (route) => {
+  await page.route("**/verify/batch/job-123/report*", async (route) => {
     reportReads += 1;
-    if (reportReads === 1) {
-      await route.fulfill({
-        status: 202,
-        contentType: "application/json",
-        body: JSON.stringify({
-          job_id: "job-123",
-          status: "running",
-          summary: { processed: 1, total: 3, pass: 1, fail: 0, review_required: 0 },
-          items: [],
-        }),
-      });
-      return;
-    }
+    const requestUrl = new URL(route.request().url());
+    sawPurgeQuery = requestUrl.searchParams.get("purge") === "true";
 
     await route.fulfill({
       status: 200,
@@ -162,4 +152,5 @@ test("batch upload shows progress and performs report download action", async ({
   const download = await downloadPromise;
   await expect(download.suggestedFilename()).toBe("job-123-report.json");
   await expect.poll(() => reportReads).toBe(1);
+  await expect.poll(() => sawPurgeQuery).toBe(true);
 });
