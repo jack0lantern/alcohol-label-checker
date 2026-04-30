@@ -4,17 +4,18 @@ from typing import Literal
 MatchStatus = Literal["pass", "fail", "review_required"]
 JobStatus = Literal["queued", "running", "completed", "completed_with_failures"]
 ItemStatus = Literal["queued", "processing", "retrying", "completed", "review_required"]
+FieldValue = str | None
 
 
 @dataclass(slots=True)
 class GroundTruthFields:
-    brand_name: str
-    class_type: str
-    alcohol_content: str
-    net_contents: str
-    government_warning: str
+    brand_name: FieldValue
+    class_type: FieldValue
+    alcohol_content: FieldValue
+    net_contents: FieldValue
+    government_warning: FieldValue
 
-    def general_fields(self) -> dict[str, str]:
+    def general_fields(self) -> dict[str, FieldValue]:
         return {
             "brand_name": self.brand_name,
             "class_type": self.class_type,
@@ -25,13 +26,13 @@ class GroundTruthFields:
 
 @dataclass(slots=True)
 class LabelExtractedFields:
-    brand_name: str
-    class_type: str
-    alcohol_content: str
-    net_contents: str
-    government_warning: str
+    brand_name: FieldValue
+    class_type: FieldValue
+    alcohol_content: FieldValue
+    net_contents: FieldValue
+    government_warning: FieldValue
 
-    def general_fields(self) -> dict[str, str]:
+    def general_fields(self) -> dict[str, FieldValue]:
         return {
             "brand_name": self.brand_name,
             "class_type": self.class_type,
@@ -43,8 +44,8 @@ class LabelExtractedFields:
 @dataclass(slots=True)
 class FieldResult:
     field_name: str
-    expected_value: str
-    extracted_value: str
+    expected_value: FieldValue
+    extracted_value: FieldValue
     status: MatchStatus
 
 

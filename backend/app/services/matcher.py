@@ -1,6 +1,6 @@
 from difflib import SequenceMatcher
 
-from app.domain.models import FieldResult, GroundTruthFields, LabelExtractedFields
+from app.domain.models import FieldResult, FieldValue, GroundTruthFields, LabelExtractedFields, MatchStatus
 
 WARNING_REVIEW_THRESHOLD = 0.97
 
@@ -12,8 +12,8 @@ def match_fields(
 
     for field_name, expected_value in ground_truth.general_fields().items():
         extracted_value = extracted.general_fields()[field_name]
-        normalized_expected = expected_value.strip().casefold()
-        normalized_extracted = extracted_value.strip().casefold()
+        normalized_expected = _normalize_general(expected_value)
+        normalized_extracted = _normalize_general(extracted_value)
         status = "pass" if normalized_expected == normalized_extracted else "fail"
         results[field_name] = FieldResult(
             field_name=field_name,
@@ -35,12 +35,24 @@ def match_fields(
     return results
 
 
-def _match_government_warning(expected: str, extracted: str) -> str:
+def _match_government_warning(expected: FieldValue, extracted: FieldValue) -> MatchStatus:
     if extracted == expected:
         return "pass"
 
-    similarity = SequenceMatcher(None, expected, extracted).ratio()
+    similarity = SequenceMatcher(None, _as_similarity_text(expected), _as_similarity_text(extracted)).ratio()
     if similarity >= WARNING_REVIEW_THRESHOLD:
         return "review_required"
 
     return "fail"
+
+
+def _normalize_general(value: FieldValue) -> str:
+    if value is None:
+        return ""
+    return value.strip().casefold()
+
+
+def _as_similarity_text(value: FieldValue) -> str:
+    if value is None:
+        return ""
+    return value
