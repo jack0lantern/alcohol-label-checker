@@ -138,8 +138,12 @@ function BatchUpload() {
 
   return (
     <section aria-label="Batch upload">
-      <h2>Batch check</h2>
-      <label htmlFor="batch-mapping-json">Batch Mapping JSON</label>
+      <div className="decorative-cross"></div>
+      <h2>Batch Check</h2>
+      
+      <div className="file-drop-area" onClick={() => document.getElementById("batch-mapping-json")?.click()}>
+        <span className="file-name">{mappingFile ? mappingFile.name : <span className="placeholder">Select Batch Mapping JSON</span>}</span>
+      </div>
       <input
         id="batch-mapping-json"
         type="file"
@@ -154,13 +158,21 @@ function BatchUpload() {
         {isSubmitting ? "Starting batch check..." : "Start batch check"}
       </button>
 
-      {jobId != null ? <p>Batch job: {jobId}</p> : null}
-      {progressText != null ? <p>{progressText}</p> : null}
-      {errorMessage != null ? <p role="alert">{errorMessage}</p> : null}
+      {errorMessage != null ? <div className="error-message" role="alert">{errorMessage}</div> : null}
 
-      <button type="button" disabled={!reportReady || jobId == null || isDownloading} onClick={() => void downloadBatchReport()}>
-        {isDownloading ? "Downloading batch report..." : "Download batch report"}
-      </button>
+      {(jobId != null || progressText != null) ? (
+        <div className="result-panel">
+          <h3>Job Status</h3>
+          {jobId != null ? <div className="value-box" style={{ marginBottom: 'var(--spacing-sm)' }}><span className="value-label">Job ID</span>{jobId}</div> : null}
+          {progressText != null ? <div className="progress-text">{progressText}</div> : null}
+          
+          {reportReady ? (
+            <button type="button" disabled={jobId == null || isDownloading} onClick={() => void downloadBatchReport()}>
+              {isDownloading ? "Downloading batch report..." : "Download batch report"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }
