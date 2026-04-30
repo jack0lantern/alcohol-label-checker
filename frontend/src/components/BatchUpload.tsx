@@ -20,43 +20,27 @@ type BatchReportResponse = {
 function BatchUpload() {
   const [mappingFile, setMappingFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [progressText, setProgressText] = useState<string | null>(null);
   const [reportReady, setReportReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const latestReportRef = useRef<BatchReportResponse | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const websocketRef = useRef<WebSocket | null>(null);
 
-  const clearPoller = () => {
-    if (timerRef.current == null) {
+  const clearSocket = () => {
+    if (websocketRef.current == null) {
       return;
     }
 
-    window.clearInterval(timerRef.current);
-    timerRef.current = null;
+    websocketRef.current.close();
+    websocketRef.current = null;
   };
 
   useEffect(() => {
     return () => {
-      clearPoller();
+      clearSocket();
     };
   }, []);
-
-  const loadReport = async (nextJobId: string) => {
-    const response = await fetch(`/verify/batch/${nextJobId}/report`);
-    if (!response.ok && response.status !== 202) {
-      throw new Error("Batch report request failed");
-    }
-
-    const body = (await response.json()) as BatchReportResponse;
-    latestReportRef.current = body;
-    setProgressText(`Batch progress: ${body.summary.processed}/${body.summary.total}`);
-
-    if (body.status === "completed" || body.status === "completed_with_failures") {
-      setReportReady(true);
-      clearPoller();
-    }
-  };
 
   const startBatchCheck = async () => {
     if (mappingFile == null || isSubmitting) {
@@ -68,8 +52,7 @@ function BatchUpload() {
     setJobId(null);
     setReportReady(false);
     setProgressText(null);
-    latestReportRef.current = null;
-    clearPoller();
+    clearSocket();
 
     try {
       const batchJson = JSON.parse(await mappingFile.text()) as { items: unknown[] };
@@ -87,15 +70,34 @@ function BatchUpload() {
 
       const createBody = (await createResponse.json()) as BatchStartResponse;
       setJobId(createBody.job_id);
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${wsProtocol}://${window.location.host}/verify/batch/${createBody.job_id}/events`);
+      websocketRef.current = ws;
 
-      await loadReport(createBody.job_id);
-      timerRef.current = window.setInterval(() => {
-        void loadReport(createBody.job_id).catch((error) => {
-          const message = error instanceof Error ? error.message : "Batch report request failed";
-          setErrorMessage(message);
-          clearPoller();
-        });
-      }, 250);
+      ws.addEventListener("message", (event) => {
+        let body: Record<string, unknown> | null = null;
+        try {
+          body = JSON.parse(event.data) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+
+        const processed = body.processed;
+        const total = body.total;
+        if (typeof processed === "number" && typeof total === "number") {
+          setProgressText(`Batch progress: ${processed}/${total}`);
+        }
+
+        const eventType = body.event_type;
+        if (eventType === "job_completed") {
+          setReportReady(true);
+          clearSocket();
+        }
+      });
+
+      ws.addEventListener("error", () => {
+        setErrorMessage("Batch progress stream failed");
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Batch verification failed";
       setErrorMessage(message);
@@ -104,19 +106,34 @@ function BatchUpload() {
     }
   };
 
-  const downloadBatchReport = () => {
-    const report = latestReportRef.current;
-    if (report == null) {
+  const downloadBatchReport = async () => {
+    if (jobId == null) {
       return;
     }
 
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${report.job_id}-report.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+    setIsDownloading(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/verify/batch/${jobId}/report`);
+      if (!response.ok) {
+        throw new Error("Batch report request failed");
+      }
+
+      const report = (await response.json()) as BatchReportResponse;
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${report.job_id}-report.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Batch report request failed";
+      setErrorMessage(message);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -141,8 +158,8 @@ function BatchUpload() {
       {progressText != null ? <p>{progressText}</p> : null}
       {errorMessage != null ? <p role="alert">{errorMessage}</p> : null}
 
-      <button type="button" disabled={!reportReady} onClick={downloadBatchReport}>
-        Download batch report
+      <button type="button" disabled={!reportReady || jobId == null || isDownloading} onClick={() => void downloadBatchReport()}>
+        {isDownloading ? "Downloading batch report..." : "Download batch report"}
       </button>
     </section>
   );
