@@ -59,3 +59,6 @@ temp/
 frontend/node_modules/
 frontend/test-results/
 frontend/playwright-report/
+
+# Allow frontend source lib (root lib/ pattern above is for Python only)
+!frontend/src/lib/
