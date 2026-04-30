@@ -51,3 +51,4 @@ local.settings.json
 *.log
 tmp/
 temp/
+.worktrees/
