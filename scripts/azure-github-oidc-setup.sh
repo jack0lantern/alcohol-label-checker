@@ -51,6 +51,20 @@ EOF
 echo "Adding federated credential (subject: $SUBJECT)"
 az ad app federated-credential create --id "$APP_ID" --parameters "@${PARAMS}"
 
+CRED_NAME_DEV="github-${GITHUB_REPO}-dev"
+SUBJECT_DEV="repo:${GITHUB_ORG}/${GITHUB_REPO}:ref:refs/heads/dev"
+cat >"$PARAMS" <<EOF
+{
+  "name": "$CRED_NAME_DEV",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "$SUBJECT_DEV",
+  "description": "GitHub Actions deploy from dev",
+  "audiences": ["api://AzureADTokenExchange"]
+}
+EOF
+echo "Adding federated credential (subject: $SUBJECT_DEV)"
+az ad app federated-credential create --id "$APP_ID" --parameters "@${PARAMS}"
+
 echo "Granting Contributor on $RESOURCE_GROUP (deploy + ACR push + container app update)"
 az role assignment create \
   --assignee "$APP_ID" \
@@ -64,4 +78,5 @@ echo "  AZURE_CLIENT_ID=$APP_ID"
 echo "  AZURE_TENANT_ID=$TENANT"
 echo "  AZURE_SUBSCRIPTION_ID=$SUB"
 echo ""
-echo "Optional: add a second federated credential for workflow_dispatch from a feature branch (see Azure docs) if needed."
+echo "For an existing app registration that only has main, add dev OIDC with:"
+echo "  AZURE_CLIENT_ID=$APP_ID ./scripts/azure-github-oidc-add-dev-credential.sh"

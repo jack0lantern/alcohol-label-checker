@@ -1,16 +1,16 @@
-name: Deploy to Azure
+name: Deploy to Azure (dev)
 
-# Requires GitHub repo secrets (OIDC): AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
-# One-time Azure setup: run scripts/azure-github-oidc-setup.sh (see script header).
-# Dev stack: .github/workflows/deploy-azure-dev.yml (branch dev) + scripts/azure-create-dev-container-app.sh
+# Same secrets as production: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# OIDC must include subject repo:<org>/<repo>:ref:refs/heads/dev — see scripts/azure-github-oidc-add-dev-credential.sh
+# One-time Azure: create dev Container App — scripts/azure-create-dev-container-app.sh
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   workflow_dispatch:
 
 concurrency:
-  group: deploy-azure-main
+  group: deploy-azure-dev
   cancel-in-progress: true
 
 permissions:
@@ -19,9 +19,9 @@ permissions:
 
 env:
   AZURE_RESOURCE_GROUP: rg-alcohol-label-checker
-  AZURE_CONTAINER_APP: alcohol-label-checker
+  AZURE_CONTAINER_APP: alcohol-label-checker-dev
   AZURE_ACR_NAME: ca2810cf1acbacr
-  IMAGE_NAME: alcohol-label-checker
+  IMAGE_NAME: alcohol-label-checker-dev
 
 jobs:
   deploy:
