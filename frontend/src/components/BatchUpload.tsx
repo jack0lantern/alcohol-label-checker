@@ -166,6 +166,76 @@ function BatchUpload() {
     });
   };
 
+  const discardOrphanPdf = (fileId: string) => {
+    setState((prev) => {
+      const fileById = new Map(prev.fileById);
+      fileById.delete(fileId);
+      return {
+        ...prev,
+        fileById,
+        orphanPdfFileIds: prev.orphanPdfFileIds.filter((id) => id !== fileId),
+      };
+    });
+  };
+
+  const discardOrphanImage = (fileId: string) => {
+    setState((prev) => {
+      const fileById = new Map(prev.fileById);
+      fileById.delete(fileId);
+      return {
+        ...prev,
+        fileById,
+        orphanImageFileIds: prev.orphanImageFileIds.filter((id) => id !== fileId),
+      };
+    });
+  };
+
+  const attachOrphanImageToItem = (imageFileId: string, itemId: string) => {
+    setState((prev) => {
+      if (!prev.itemPdfFileId.has(itemId)) return prev;
+      const newLabelIds = [...(prev.itemLabelFileIds.get(itemId) ?? []), imageFileId];
+      const newItemLabelFileIds = new Map(prev.itemLabelFileIds);
+      newItemLabelFileIds.set(itemId, newLabelIds);
+      const newItemOverLimit = new Map(prev.itemOverLimit);
+      newItemOverLimit.set(itemId, newLabelIds.length > 10);
+      return {
+        ...prev,
+        itemLabelFileIds: newItemLabelFileIds,
+        itemOverLimit: newItemOverLimit,
+        orphanImageFileIds: prev.orphanImageFileIds.filter((id) => id !== imageFileId),
+      };
+    });
+  };
+
+  const promoteOrphanPdfWithImage = (pdfFileId: string, imageFileId: string) => {
+    setState((prev) => {
+      if (!prev.fileById.has(pdfFileId) || !prev.fileById.has(imageFileId)) return prev;
+      const pdfFile = prev.fileById.get(pdfFileId)!;
+      const filename = pdfFile.relativePath.split("/").pop() ?? pdfFile.relativePath;
+      const baseId = filename.replace(/\.[^.]+$/, "");
+      let candidate = baseId;
+      let suffix = 1;
+      while (prev.itemPdfFileId.has(candidate)) {
+        suffix += 1;
+        candidate = `${baseId}-${suffix}`;
+      }
+      const newItemPdfFileId = new Map(prev.itemPdfFileId);
+      newItemPdfFileId.set(candidate, pdfFileId);
+      const newItemLabelFileIds = new Map(prev.itemLabelFileIds);
+      newItemLabelFileIds.set(candidate, [imageFileId]);
+      const newItemOverLimit = new Map(prev.itemOverLimit);
+      newItemOverLimit.set(candidate, false);
+      return {
+        ...prev,
+        itemPdfFileId: newItemPdfFileId,
+        itemLabelFileIds: newItemLabelFileIds,
+        itemOverLimit: newItemOverLimit,
+        orphanPdfFileIds: prev.orphanPdfFileIds.filter((id) => id !== pdfFileId),
+        orphanImageFileIds: prev.orphanImageFileIds.filter((id) => id !== imageFileId),
+      };
+    });
+  };
+
   return (
     <section aria-label="Batch upload">
       <h2>Batch Check</h2>
@@ -216,7 +286,16 @@ function BatchUpload() {
             const overLimit = state.itemOverLimit.get(itemId) ?? false;
             const pdfFile = state.fileById.get(pdfId)!;
             return (
-              <div className={`batch-item-row${overLimit ? " over-limit" : ""}`} key={itemId}>
+              <div
+                className={`batch-item-row${overLimit ? " over-limit" : ""}`}
+                key={itemId}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const droppedId = e.dataTransfer.getData("text/orphan-image-id");
+                  if (droppedId) attachOrphanImageToItem(droppedId, itemId);
+                }}
+              >
                 <div className="batch-item-pdf">{pdfFile.relativePath}</div>
                 <div className="batch-item-labels">
                   {labelIds.map((lid) => {
@@ -235,6 +314,84 @@ function BatchUpload() {
               </div>
             );
           })}
+        </div>
+      ) : null}
+
+      {(state.orphanPdfFileIds.length + state.orphanImageFileIds.length) > 0 ? (
+        <div className="orphan-tray">
+          <h3>Needs review ({state.orphanPdfFileIds.length + state.orphanImageFileIds.length})</h3>
+          {state.orphanPdfFileIds.length > 0 ? (
+            <div className="orphan-section">
+              <h4>Orphan PDFs</h4>
+              {state.orphanPdfFileIds.map((id) => {
+                const f = state.fileById.get(id)!;
+                return (
+                  <div
+                    className="orphan-row"
+                    key={id}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const droppedId = e.dataTransfer.getData("text/orphan-image-id");
+                      if (droppedId) promoteOrphanPdfWithImage(id, droppedId);
+                    }}
+                  >
+                    <span>{f.relativePath}</span>
+                    <button type="button" onClick={() => discardOrphanPdf(id)}>Discard</button>
+                    <select
+                      aria-label={`Attach images to ${f.relativePath}`}
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          promoteOrphanPdfWithImage(id, e.target.value);
+                        }
+                      }}
+                    >
+                      <option value="">Attach orphan image…</option>
+                      {state.orphanImageFileIds.map((imgId) => (
+                        <option key={imgId} value={imgId}>
+                          {state.fileById.get(imgId)!.relativePath}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+          {state.orphanImageFileIds.length > 0 ? (
+            <div className="orphan-section">
+              <h4>Orphan images</h4>
+              {state.orphanImageFileIds.map((id) => {
+                const f = state.fileById.get(id)!;
+                return (
+                  <div
+                    className="orphan-row"
+                    key={id}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("text/orphan-image-id", id)}
+                  >
+                    <span>{f.relativePath}</span>
+                    <button type="button" onClick={() => discardOrphanImage(id)}>Discard</button>
+                    <select
+                      aria-label={`Attach ${f.relativePath} to item`}
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value) attachOrphanImageToItem(id, e.target.value);
+                      }}
+                    >
+                      <option value="">Attach to item…</option>
+                      {Array.from(state.itemPdfFileId.keys()).map((itemId) => (
+                        <option key={itemId} value={itemId}>
+                          {itemId}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

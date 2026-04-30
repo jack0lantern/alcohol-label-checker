@@ -411,3 +411,17 @@ button:disabled {
 .label-chip button { margin-left: 0.25rem; background: transparent; border: 0; cursor: pointer; }
 .label-count-badge { color: green; }
 .label-count-badge.over-limit { color: #c00; font-weight: 600; }
+
+.orphan-tray {
+  border-top: 2px solid var(--color-border, #eee);
+  margin-top: var(--spacing-md, 1rem);
+  padding-top: var(--spacing-md, 1rem);
+}
+.orphan-section { margin-bottom: var(--spacing-sm, 0.5rem); }
+.orphan-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem;
+}
+.orphan-row span { flex: 1; }
