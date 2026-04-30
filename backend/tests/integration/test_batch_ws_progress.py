@@ -69,3 +69,4 @@ def test_batch_websocket_streams_progress_events() -> None:
     assert processed_outcome_matrix["item-2"] in {"pass", "fail", "review_required"}
     assert events[-1]["event_type"] == "job_completed"
     assert events[-1]["processed"] == events[-1]["total"]
+    assert events[-1]["status"] == "completed_with_failures"

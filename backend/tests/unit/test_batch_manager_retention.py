@@ -58,10 +58,11 @@ def test_verify_item_payload_clears_intermediate_artifacts(monkeypatch) -> None:
     )
 
     pdf_bytes = (FIXTURES_ROOT / "forms/realistic_clean_lager_f510031.pdf").read_bytes()
+    image_bytes = (FIXTURES_ROOT / "images/realistic_clean_lager.png").read_bytes()
     result = batch_manager._verify_item_payload(  # noqa: SLF001
         {
             "form_payload": {"pdf_base64": base64.b64encode(pdf_bytes).decode("ascii")},
-            "label_payloads": [{"brand_name": "Acme Brewing"}],
+            "label_payloads": [{"image_base64": base64.b64encode(image_bytes).decode("ascii")}],
         }
     )
 

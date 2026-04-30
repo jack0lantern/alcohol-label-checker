@@ -220,15 +220,17 @@ def _process_item(record: BatchJobRecord, item_state: BatchItemState, item_paylo
 def _verify_item_payload(item_payload: dict[str, Any]) -> dict[str, Any]:
     form_payload = item_payload.get("form_payload")
     label_payloads = item_payload.get("label_payloads")
-    if not isinstance(label_payloads, list) or not 1 <= len(label_payloads) <= 10:
-        raise ValueError("label_payloads must include between 1 and 10 payloads")
     if not isinstance(form_payload, dict):
         raise ValueError("form_payload must be a JSON object")
     pdf_base64 = form_payload.get("pdf_base64")
     if not isinstance(pdf_base64, str) or not pdf_base64:
         raise ValueError("form_payload missing pdf_base64")
-
-    form_bytes = bytearray(b64decode(pdf_base64))
+    if not isinstance(label_payloads, list) or not 1 <= len(label_payloads) <= 10:
+        raise ValueError("label_payloads must include between 1 and 10 payloads")
+    try:
+        form_bytes = bytearray(b64decode(pdf_base64))
+    except Exception as exc:
+        raise ValueError(f"form_payload pdf_base64 is not valid base64: {exc}") from exc
     label_bytes_list = [bytearray(_coerce_label_bytes(label_payload)) for label_payload in label_payloads]
     extracted_payloads: list[Any] = []
 
