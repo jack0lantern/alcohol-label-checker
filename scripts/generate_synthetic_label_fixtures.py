@@ -9,7 +9,7 @@ import struct
 import zlib
 from binascii import crc32
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 
 
@@ -19,6 +19,7 @@ SAMPLE_TYPE_BASE_COLORS = {
     "generated": (78, 163, 113),
     "adversarial": (196, 78, 82),
 }
+DETERMINISTIC_GENERATED_AT_UTC = "1970-01-01T00:00:00Z"
 
 
 @dataclass(frozen=True)
@@ -244,6 +245,10 @@ def _repo_relative_path(path: Path, repo_root: Path) -> str:
     return path.relative_to(repo_root).as_posix()
 
 
+def _sha256_hex(path: Path) -> str:
+    return sha256(path.read_bytes()).hexdigest()
+
+
 def _write_fixture_files(
     fixtures_dir: Path, fixture_specs: list[FixtureSpec], repo_root: Path
 ) -> list[dict[str, str]]:
@@ -275,9 +280,13 @@ def _write_fixture_files(
                 "scenario": spec.scenario,
                 "notes": spec.notes,
                 "image": _repo_relative_path(image_path, repo_root),
+                "image_sha256": _sha256_hex(image_path),
                 "form": _repo_relative_path(form_path, repo_root),
+                "form_sha256": _sha256_hex(form_path),
                 "truth": _repo_relative_path(truth_path, repo_root),
+                "truth_sha256": _sha256_hex(truth_path),
                 "expected": _repo_relative_path(expected_path, repo_root),
+                "expected_sha256": _sha256_hex(expected_path),
             }
         )
 
@@ -288,10 +297,7 @@ def _write_manifest(fixtures_dir: Path, fixtures: list[dict[str, str]]) -> None:
     manifest = {
         "schema_version": 1,
         "description": "Hermetic offline fixture dataset for alcohol label verification.",
-        "generated_at_utc": datetime.now(timezone.utc)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z"),
+        "generated_at_utc": DETERMINISTIC_GENERATED_AT_UTC,
         "fixtures": fixtures,
     }
     _write_json(fixtures_dir / "labels/fixtures_manifest.json", manifest)

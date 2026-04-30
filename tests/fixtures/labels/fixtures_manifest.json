@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "description": "Hermetic offline fixture dataset for alcohol label verification.",
-  "generated_at_utc": "2026-04-30T03:00:05Z",
+  "generated_at_utc": "1970-01-01T00:00:00Z",
   "fixtures": [
     {
       "fixture_id": "realistic_clean_lager",
@@ -10,9 +10,13 @@
       "scenario": "single_pass",
       "notes": "Realistic production-ready label with exact legal warning text.",
       "image": "tests/fixtures/labels/images/realistic_clean_lager.png",
+      "image_sha256": "d0322570b0b0e9612367ea430f189297de0900a51a555bcd9b015ebfb4665ab7",
       "form": "tests/fixtures/labels/forms/realistic_clean_lager.json",
+      "form_sha256": "46b85df885af7b5fb0672dc63856d4b22aff0a1edf73e1141e59e22742cb44e1",
       "truth": "tests/fixtures/labels/truth/realistic_clean_lager.json",
-      "expected": "tests/fixtures/labels/expected/realistic_clean_lager.json"
+      "truth_sha256": "46b85df885af7b5fb0672dc63856d4b22aff0a1edf73e1141e59e22742cb44e1",
+      "expected": "tests/fixtures/labels/expected/realistic_clean_lager.json",
+      "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
     },
     {
       "fixture_id": "generated_citrus_ipa",
@@ -21,9 +25,13 @@
       "scenario": "single_pass",
       "notes": "Synthetic but valid label values generated for normal OCR pathways.",
       "image": "tests/fixtures/labels/images/generated_citrus_ipa.png",
+      "image_sha256": "fd09da4a6906056c8cea38b081dcf587257cb45feb6a5d089fdfd10979bcc41e",
       "form": "tests/fixtures/labels/forms/generated_citrus_ipa.json",
+      "form_sha256": "16cc8707abe437b171fe168deba489991e40432878f3ad3b44b3b6f4ebd194bb",
       "truth": "tests/fixtures/labels/truth/generated_citrus_ipa.json",
-      "expected": "tests/fixtures/labels/expected/generated_citrus_ipa.json"
+      "truth_sha256": "16cc8707abe437b171fe168deba489991e40432878f3ad3b44b3b6f4ebd194bb",
+      "expected": "tests/fixtures/labels/expected/generated_citrus_ipa.json",
+      "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
     },
     {
       "fixture_id": "adversarial_warning_typo",
@@ -32,9 +40,13 @@
       "scenario": "review_required",
       "notes": "Single-character warning typo designed to trigger review_required outcome.",
       "image": "tests/fixtures/labels/images/adversarial_warning_typo.png",
+      "image_sha256": "7ea16c488354a337b7032a02851214a9c78b83d6b1f98c35a2b8dd17a175678e",
       "form": "tests/fixtures/labels/forms/adversarial_warning_typo.json",
+      "form_sha256": "a84c711711b6384a90e139c56ffc22adbf1950b1ba238ae006970d08b4232e3d",
       "truth": "tests/fixtures/labels/truth/adversarial_warning_typo.json",
-      "expected": "tests/fixtures/labels/expected/adversarial_warning_typo.json"
+      "truth_sha256": "38503bd8a1adef068da78a05c35e754121e5bc03bbe2d578be59a5d2b2153779",
+      "expected": "tests/fixtures/labels/expected/adversarial_warning_typo.json",
+      "expected_sha256": "41f0b73a42fa462b55eaf99939c6084658edd19b77d69e078406ff43cbf34f17"
     },
     {
       "fixture_id": "adversarial_wrong_abv",
@@ -43,9 +55,13 @@
       "scenario": "single_fail",
       "notes": "ABV mismatch and warning mismatch trigger fail outcomes.",
       "image": "tests/fixtures/labels/images/adversarial_wrong_abv.png",
+      "image_sha256": "6e54e28b84bd1d2abbdb379204f41405bae8cc890d1dff474c03d1e74e5663f8",
       "form": "tests/fixtures/labels/forms/adversarial_wrong_abv.json",
+      "form_sha256": "9aa4cb4283fdcabcae392db45200eb841adf40078f7a38946ccbe2bea39e36fe",
       "truth": "tests/fixtures/labels/truth/adversarial_wrong_abv.json",
-      "expected": "tests/fixtures/labels/expected/adversarial_wrong_abv.json"
+      "truth_sha256": "b96404b0cfea86c706b7fd3d89c8a54c01c8fd8192651175195fe1850e865ed0",
+      "expected": "tests/fixtures/labels/expected/adversarial_wrong_abv.json",
+      "expected_sha256": "834b234fee9443547a0e4e3f5e3b2fe4474288e694f0c34b694616a69a952d8c"
     },
     {
       "fixture_id": "generated_retry_then_review",
@@ -54,9 +70,13 @@
       "scenario": "retry_then_review",
       "notes": "Used by batch retry workflow where second attempt still requires review.",
       "image": "tests/fixtures/labels/images/generated_retry_then_review.png",
+      "image_sha256": "c49329d11c62c4e2cc8f9599480c742d915c8c2eab0b61eda2bd36432d823d63",
       "form": "tests/fixtures/labels/forms/generated_retry_then_review.json",
+      "form_sha256": "385d0473d716d77d12873bda62dc69b65d6e369d60063b5cb97b4bd408173c0e",
       "truth": "tests/fixtures/labels/truth/generated_retry_then_review.json",
-      "expected": "tests/fixtures/labels/expected/generated_retry_then_review.json"
+      "truth_sha256": "037a06890e9402dcf32bd75f9bc7c3f9edd365a50e8aa482c01af11ff6ad1583",
+      "expected": "tests/fixtures/labels/expected/generated_retry_then_review.json",
+      "expected_sha256": "41f0b73a42fa462b55eaf99939c6084658edd19b77d69e078406ff43cbf34f17"
     }
   ]
 }

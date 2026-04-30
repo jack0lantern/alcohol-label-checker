@@ -6,6 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST_PATH = REPO_ROOT / "tests/fixtures/labels/fixtures_manifest.json"
 REQUIRED_SAMPLE_TYPES = {"realistic", "generated", "adversarial"}
+EXPECTED_GENERATED_AT_UTC = "1970-01-01T00:00:00Z"
 
 
 def test_fixture_manifest_references_existing_files() -> None:
@@ -13,9 +14,13 @@ def test_fixture_manifest_references_existing_files() -> None:
 
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     fixtures = manifest.get("fixtures")
+    generated_at_utc = manifest.get("generated_at_utc")
 
     assert isinstance(fixtures, list), "Manifest fixtures must be a list"
     assert fixtures, "Manifest fixtures list must not be empty"
+    assert generated_at_utc == EXPECTED_GENERATED_AT_UTC, (
+        "Manifest generated_at_utc must be deterministic"
+    )
 
     sample_types = set()
     image_digests_by_fixture: dict[str, str] = {}
@@ -50,6 +55,15 @@ def test_fixture_manifest_references_existing_files() -> None:
                 digest = sha256(resolved_path.read_bytes()).hexdigest()
                 image_digests_by_fixture[fixture_id] = digest
                 image_digests_by_type.setdefault(sample_type, set()).add(digest)
+
+            checksum_field = f"{field}_sha256"
+            checksum_value = fixture.get(checksum_field)
+            assert isinstance(checksum_value, str) and len(checksum_value) == 64, (
+                f"Fixture must include {checksum_field} checksum"
+            )
+            assert checksum_value == sha256(resolved_path.read_bytes()).hexdigest(), (
+                f"{checksum_field} mismatch for {raw_path}"
+            )
 
     assert REQUIRED_SAMPLE_TYPES.issubset(sample_types), (
         "Manifest must include realistic, generated, and adversarial samples"
