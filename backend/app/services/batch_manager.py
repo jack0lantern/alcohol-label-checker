@@ -10,6 +10,7 @@ from app.services.image_preprocess import preprocess_image
 from app.services.matcher import match_fields
 from app.services.ocr.tesseract_engine import TesseractEngine
 from app.services.pdf_parser import extract_ground_truth
+from app.services.retention_guard import clear_all_batch_artifacts, clear_batch_artifacts
 
 _MAX_ATTEMPTS_PER_ITEM = 2
 _COMPLETED_JOB_STATUSES = {"completed", "completed_with_failures"}
@@ -100,6 +101,16 @@ def is_job_finished(job_id: str) -> bool:
     if snapshot is None:
         return True
     return snapshot["status"] in _COMPLETED_JOB_STATUSES
+
+
+def clear_job(job_id: str) -> bool:
+    with _jobs_lock:
+        return clear_batch_artifacts(_jobs, job_id)
+
+
+def clear_all_jobs() -> int:
+    with _jobs_lock:
+        return clear_all_batch_artifacts(_jobs)
 
 
 def _process_job(job_id: str, items: list[dict[str, Any]]) -> None:
