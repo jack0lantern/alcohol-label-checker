@@ -1,4 +1,0 @@
-fixture_id,image_path,form_path,truth_path,expected_path,scenario
-realistic_clean_lager,tests/fixtures/labels/images/realistic_clean_lager.png,tests/fixtures/labels/forms/realistic_clean_lager.json,tests/fixtures/labels/truth/realistic_clean_lager.json,tests/fixtures/labels/expected/realistic_clean_lager.json,single_pass
-adversarial_warning_typo,tests/fixtures/labels/images/adversarial_warning_typo.png,tests/fixtures/labels/forms/adversarial_warning_typo.json,tests/fixtures/labels/truth/adversarial_warning_typo.json,tests/fixtures/labels/expected/adversarial_warning_typo.json,review_required
-adversarial_wrong_abv,tests/fixtures/labels/images/adversarial_wrong_abv.png,tests/fixtures/labels/forms/adversarial_wrong_abv.json,tests/fixtures/labels/truth/adversarial_wrong_abv.json,tests/fixtures/labels/expected/adversarial_wrong_abv.json,single_fail
