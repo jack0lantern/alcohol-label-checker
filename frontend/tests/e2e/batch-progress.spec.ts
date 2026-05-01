@@ -133,12 +133,19 @@ test("batch upload shows progress and performs report download action", async ({
 
   await page.goto("/");
 
-  await page.locator("#batch-mapping-json").setInputFiles({
-    name: "batch.json",
-    mimeType: "application/json",
-    buffer: Buffer.from('{"items":[]}'),
-  });
+  // Click "Pick files" then set the hidden multi-input
+  const filesInput = page.locator('section[aria-label="Batch upload"] input[type="file"][multiple]:not([webkitdirectory])');
+  await filesInput.setInputFiles([
+    { name: "widget.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake\n") },
+    { name: "widget-front.png", mimeType: "image/png", buffer: Buffer.from("fake-png-bytes") },
+    { name: "widget-back.png", mimeType: "image/png", buffer: Buffer.from("fake-png-bytes") },
+  ]);
 
+  // Verify the auto-pairing rendered one item with two labels
+  await expect(page.getByText(/1 PDFs, 2 images/)).toBeVisible();
+  await expect(page.getByText("widget.pdf")).toBeVisible();
+
+  // Start
   await page.getByRole("button", { name: "Start batch check" }).click();
 
   await expect(page.getByText("Batch progress: 3/3")).toBeVisible();
@@ -153,4 +160,36 @@ test("batch upload shows progress and performs report download action", async ({
   await expect(download.suggestedFilename()).toBe("job-123-report.json");
   await expect.poll(() => reportReads).toBe(1);
   await expect.poll(() => sawPurgeQuery).toBe(true);
+});
+
+test("orphan PDF and orphan image must be resolved before Start enables", async ({ page }) => {
+  await page.route("**/verify/batch", async (route) => {
+    await route.fulfill({
+      status: 202,
+      contentType: "application/json",
+      body: JSON.stringify({ job_id: "job-orphan" }),
+    });
+  });
+
+  await page.goto("/");
+
+  const filesInput = page.locator('section[aria-label="Batch upload"] input[type="file"][multiple]:not([webkitdirectory])');
+  await filesInput.setInputFiles([
+    { name: "lonely.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake\n") },
+    { name: "stranger.png", mimeType: "image/png", buffer: Buffer.from("fake-png-bytes") },
+  ]);
+
+  // Both should land in the orphan tray; Start is disabled with explanatory tooltip
+  await expect(page.getByRole("heading", { name: /Needs review/ })).toBeVisible();
+  const startButton = page.getByRole("button", { name: "Start batch check" });
+  await expect(startButton).toBeDisabled();
+  await expect(startButton).toHaveAttribute("title", /Resolve all items/);
+
+  // Resolve: attach the orphan image to the orphan PDF via the select
+  await page
+    .getByLabel("Attach images to lonely.pdf")
+    .selectOption({ label: "stranger.png" });
+
+  // Now Start should be enabled
+  await expect(startButton).toBeEnabled();
 });

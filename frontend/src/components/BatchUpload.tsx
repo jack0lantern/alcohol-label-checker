@@ -248,12 +248,12 @@ function BatchUpload() {
   };
 
   const blockingReason = (() => {
+    if (state.orphanPdfFileIds.length + state.orphanImageFileIds.length > 0) {
+      return "Resolve all items in the Needs Review tray.";
+    }
     if (state.itemPdfFileId.size === 0) return "Add at least one form-and-label item.";
     for (const [, overLimit] of state.itemOverLimit) {
       if (overLimit) return "Trim items with more than 10 labels.";
-    }
-    if (state.orphanPdfFileIds.length + state.orphanImageFileIds.length > 0) {
-      return "Resolve all items in the Needs Review tray.";
     }
     return null;
   })();
