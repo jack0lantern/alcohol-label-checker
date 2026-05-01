@@ -6,6 +6,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MANIFEST_PATH = REPO_ROOT / "tests/fixtures/labels/fixtures_manifest.json"
 EXPECTED_GENERATED_AT_UTC = "1970-01-01T00:00:00Z"
+REQUIRED_SAMPLE_TYPES = {"realistic", "generated", "adversarial"}
 
 
 def test_fixture_manifest_references_existing_files() -> None:
@@ -22,6 +23,7 @@ def test_fixture_manifest_references_existing_files() -> None:
     )
 
     image_digests_by_fixture: dict[str, str] = {}
+    sample_types: set[str] = set()
     for fixture in fixtures:
         fixture_id = fixture.get("fixture_id")
         assert isinstance(fixture_id, str) and fixture_id, (
@@ -32,6 +34,7 @@ def test_fixture_manifest_references_existing_files() -> None:
         assert isinstance(sample_type, str) and sample_type, (
             "Fixture sample_type must be a non-empty string"
         )
+        sample_types.add(sample_type)
 
         for field in ("image", "form", "truth", "expected"):
             raw_path = fixture.get(field)
@@ -62,4 +65,10 @@ def test_fixture_manifest_references_existing_files() -> None:
 
     assert len(set(image_digests_by_fixture.values())) == len(image_digests_by_fixture), (
         "Each fixture image must be content-distinct to avoid placeholder regressions"
+    )
+
+    missing_types = REQUIRED_SAMPLE_TYPES - sample_types
+    assert not missing_types, (
+        f"Fixture dataset must include all sample types {REQUIRED_SAMPLE_TYPES}; "
+        f"missing: {missing_types}"
     )

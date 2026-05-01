@@ -62,6 +62,51 @@
       "truth_sha256": "8dfdb13796f84ecc74954d4d2397431c9ecbd195f075f3d3e77bd073bb8b0923",
       "expected": "tests/fixtures/labels/expected/ttb_spirits.json",
       "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
+    },
+    {
+      "fixture_id": "generated_citrus_ipa",
+      "sample_type": "generated",
+      "source": "synthetic",
+      "scenario": "single_pass",
+      "notes": "Synthetic generated IPA label (MALT BEVERAGE, 6.5% ABV, 16 fl oz). All fields pass.",
+      "image": "tests/fixtures/labels/images/generated_citrus_ipa.png",
+      "image_sha256": "780cf653a4f40fd3e751293dc9880a09ffab4a069b9f3d7b8007c30d059eebeb",
+      "form": "tests/fixtures/labels/forms/generated_citrus_ipa.json",
+      "form_sha256": "9f539a494d0db9d535376ac60bc995e5deeaa037104a56c9c968a0a32a022f91",
+      "truth": "tests/fixtures/labels/truth/generated_citrus_ipa.json",
+      "truth_sha256": "9f539a494d0db9d535376ac60bc995e5deeaa037104a56c9c968a0a32a022f91",
+      "expected": "tests/fixtures/labels/expected/generated_citrus_ipa.json",
+      "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
+    },
+    {
+      "fixture_id": "adversarial_warning_typo",
+      "sample_type": "adversarial",
+      "source": "synthetic",
+      "scenario": "review_required",
+      "notes": "Adversarial label: government warning has a one-character typo ('GOVERNMET' vs 'GOVERNMENT'). High similarity triggers review_required.",
+      "image": "tests/fixtures/labels/images/adversarial_warning_typo.png",
+      "image_sha256": "4ec4651278482426e3d809a841c4092b89c67b3760cf0e9809b5e359826b93c9",
+      "form": "tests/fixtures/labels/forms/adversarial_warning_typo.json",
+      "form_sha256": "9f539a494d0db9d535376ac60bc995e5deeaa037104a56c9c968a0a32a022f91",
+      "truth": "tests/fixtures/labels/truth/adversarial_warning_typo.json",
+      "truth_sha256": "f715633f9554e6c61ddc327e95b0b89bba51743b9906e1a5ed8a7bde522fb518",
+      "expected": "tests/fixtures/labels/expected/adversarial_warning_typo.json",
+      "expected_sha256": "41f0b73a42fa462b55eaf99939c6084658edd19b77d69e078406ff43cbf34f17"
+    },
+    {
+      "fixture_id": "adversarial_wrong_abv",
+      "sample_type": "adversarial",
+      "source": "synthetic",
+      "scenario": "fail",
+      "notes": "Adversarial label: alcohol content is 7.0% on the label but form declares 5.0%. alcohol_content field must fail.",
+      "image": "tests/fixtures/labels/images/adversarial_wrong_abv.png",
+      "image_sha256": "daa51f2f3773a1133fa5c8f9510a678662380b1e72b37900fb21bee700e33355",
+      "form": "tests/fixtures/labels/forms/adversarial_wrong_abv.json",
+      "form_sha256": "fd2a48a2a54b6e9fd989e8994069dbc4f61d66916f4955d0b23d121f2bb36345",
+      "truth": "tests/fixtures/labels/truth/adversarial_wrong_abv.json",
+      "truth_sha256": "e0c09b9587143c4029c5d58b61dcc8498f5b1fc64acdbc69d2cce7401dea6e1e",
+      "expected": "tests/fixtures/labels/expected/adversarial_wrong_abv.json",
+      "expected_sha256": "698c9b97a15b172cbfc3688a4850d75c518bf940fb06920c166286cf32aef3cd"
     }
   ]
 }

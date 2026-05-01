@@ -1,0 +1,10 @@
+{
+  "overall_status": "fail",
+  "field_statuses": {
+    "brand_name": "pass",
+    "class_type": "pass",
+    "alcohol_content": "fail",
+    "net_contents": "pass",
+    "government_warning": "pass"
+  }
+}
