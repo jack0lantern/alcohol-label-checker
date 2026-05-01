@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiUrl, batchEventsWebSocketUrl, unreachableApiHint } from "../apiClient";
 import { pairFiles, type DroppedFile, type PairingResult } from "../lib/pairing";
@@ -92,6 +92,17 @@ function BatchUpload() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const filesInputRef = useRef<HTMLInputElement | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [progressText, setProgressText] = useState<string | null>(null);
+  const [reportReady, setReportReady] = useState(false);
+  const websocketRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => () => {
+    websocketRef.current?.close();
+    websocketRef.current = null;
+  }, []);
 
   const summary = useMemo(() => {
     let pdfCount = 0;
@@ -234,6 +245,120 @@ function BatchUpload() {
         orphanImageFileIds: prev.orphanImageFileIds.filter((id) => id !== imageFileId),
       };
     });
+  };
+
+  const blockingReason = (() => {
+    if (state.itemPdfFileId.size === 0) return "Add at least one form-and-label item.";
+    for (const [, overLimit] of state.itemOverLimit) {
+      if (overLimit) return "Trim items with more than 10 labels.";
+    }
+    if (state.orphanPdfFileIds.length + state.orphanImageFileIds.length > 0) {
+      return "Resolve all items in the Needs Review tray.";
+    }
+    return null;
+  })();
+
+  const startBatch = async () => {
+    if (blockingReason !== null || isSubmitting) return;
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setJobId(null);
+    setReportReady(false);
+    setProgressText(null);
+
+    try {
+      const formData = new FormData();
+      const usedFilenames = new Set<string>();
+      const itemSpecs: Array<{ item_id: string; form_filename: string; label_filenames: string[] }> = [];
+      for (const [itemId, pdfFileId] of state.itemPdfFileId) {
+        const pdfFile = state.fileById.get(pdfFileId)!;
+        const pdfName = pdfFile.relativePath.split("/").pop()!;
+        if (!usedFilenames.has(pdfFile.relativePath)) {
+          formData.append("files", pdfFile.file, pdfName);
+          usedFilenames.add(pdfFile.relativePath);
+        }
+        const labelIds = state.itemLabelFileIds.get(itemId) ?? [];
+        const labelNames: string[] = [];
+        for (const lid of labelIds) {
+          const lf = state.fileById.get(lid)!;
+          const lname = lf.relativePath.split("/").pop()!;
+          if (!usedFilenames.has(lf.relativePath)) {
+            formData.append("files", lf.file, lname);
+            usedFilenames.add(lf.relativePath);
+          }
+          labelNames.push(lname);
+        }
+        itemSpecs.push({ item_id: itemId, form_filename: pdfName, label_filenames: labelNames });
+      }
+      formData.append("mapping", JSON.stringify({ items: itemSpecs }));
+
+      const response = await fetch(apiUrl("/verify/batch"), { method: "POST", body: formData });
+      if (!response.ok) {
+        const detail = response.status === 400 ? (await response.json()).detail ?? "Bad request" : "Batch verification failed";
+        throw new Error(detail);
+      }
+      const body = (await response.json()) as { job_id: string };
+      setJobId(body.job_id);
+      const ws = new WebSocket(batchEventsWebSocketUrl(body.job_id));
+      websocketRef.current = ws;
+      ws.addEventListener("message", (event) => {
+        let parsed: Record<string, unknown> | null = null;
+        try {
+          parsed = JSON.parse(event.data) as Record<string, unknown>;
+        } catch {
+          return;
+        }
+        const processed = parsed.processed;
+        const total = parsed.total;
+        if (typeof processed === "number" && typeof total === "number") {
+          setProgressText(`Batch progress: ${processed}/${total}`);
+        }
+        if (parsed.event_type === "job_completed") {
+          setReportReady(true);
+          ws.close();
+          websocketRef.current = null;
+        }
+      });
+      ws.addEventListener("error", () => setErrorMessage("Batch progress stream failed"));
+    } catch (error) {
+      const message =
+        error instanceof TypeError && error.message === "Failed to fetch"
+          ? `Unable to reach the API. ${unreachableApiHint()}`
+          : error instanceof Error
+            ? error.message
+            : "Batch verification failed";
+      setErrorMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const downloadReport = async () => {
+    if (jobId == null) return;
+    setIsDownloading(true);
+    setErrorMessage(null);
+    try {
+      const response = await fetch(apiUrl(`/verify/batch/${jobId}/report?purge=true`));
+      if (!response.ok) throw new Error("Batch report request failed");
+      const report = (await response.json()) as BatchReportResponse;
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${report.job_id}-report.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      const message =
+        error instanceof TypeError && error.message === "Failed to fetch"
+          ? `Unable to reach the API. ${unreachableApiHint()}`
+          : error instanceof Error
+            ? error.message
+            : "Batch report request failed";
+      setErrorMessage(message);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -391,6 +516,28 @@ function BatchUpload() {
                 );
               })}
             </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        disabled={blockingReason !== null || isSubmitting}
+        title={blockingReason ?? ""}
+        onClick={() => void startBatch()}
+      >
+        {isSubmitting ? "Starting batch check..." : "Start batch check"}
+      </button>
+
+      {jobId != null || progressText != null ? (
+        <div className="result-panel">
+          <h3>Job Status</h3>
+          {jobId != null ? <div className="value-box"><span className="value-label">Job ID</span>{jobId}</div> : null}
+          {progressText != null ? <div className="progress-text">{progressText}</div> : null}
+          {reportReady ? (
+            <button type="button" disabled={jobId == null || isDownloading} onClick={() => void downloadReport()}>
+              {isDownloading ? "Downloading batch report..." : "Download batch report"}
+            </button>
           ) : null}
         </div>
       ) : null}
