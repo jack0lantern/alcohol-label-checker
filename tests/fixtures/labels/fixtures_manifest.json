@@ -77,6 +77,51 @@
       "truth_sha256": "65f1677da64d2da8cde2ba736a6b93af2b625db6c424a40167cc7a2f682b1169",
       "expected": "tests/fixtures/labels/expected/generated_retry_then_review.json",
       "expected_sha256": "41f0b73a42fa462b55eaf99939c6084658edd19b77d69e078406ff43cbf34f17"
+    },
+    {
+      "fixture_id": "ttb_beer",
+      "sample_type": "realistic",
+      "source": "ttb-cola",
+      "scenario": "single_pass",
+      "notes": "Synthetic TTB COLA\u2013style beer label (BEER class, 5% ABV, 12 fl oz).",
+      "image": "tests/fixtures/labels/images/ttb_beer.png",
+      "image_sha256": "e3267c2a118e9a943f2f7327986d564103abea12b421fd535bf899e0df8f56f8",
+      "form": "tests/fixtures/labels/forms/ttb_beer.json",
+      "form_sha256": "fd2a48a2a54b6e9fd989e8994069dbc4f61d66916f4955d0b23d121f2bb36345",
+      "truth": "tests/fixtures/labels/truth/ttb_beer.json",
+      "truth_sha256": "fd2a48a2a54b6e9fd989e8994069dbc4f61d66916f4955d0b23d121f2bb36345",
+      "expected": "tests/fixtures/labels/expected/ttb_beer.json",
+      "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
+    },
+    {
+      "fixture_id": "ttb_wine",
+      "sample_type": "realistic",
+      "source": "ttb-cola",
+      "scenario": "single_pass",
+      "notes": "Synthetic TTB COLA\u2013style wine label (TABLE WINE class, 12.5% ABV, 750 mL).",
+      "image": "tests/fixtures/labels/images/ttb_wine.png",
+      "image_sha256": "03bb9a0fdc72ea1e46729d70f444295290ca4c1e9907df57f869e46550728942",
+      "form": "tests/fixtures/labels/forms/ttb_wine.json",
+      "form_sha256": "71734095884c7f12270350832b07945c911849cc687c772c9d6438c6b9f8fb8e",
+      "truth": "tests/fixtures/labels/truth/ttb_wine.json",
+      "truth_sha256": "71734095884c7f12270350832b07945c911849cc687c772c9d6438c6b9f8fb8e",
+      "expected": "tests/fixtures/labels/expected/ttb_wine.json",
+      "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
+    },
+    {
+      "fixture_id": "ttb_spirits",
+      "sample_type": "realistic",
+      "source": "ttb-cola",
+      "scenario": "single_pass",
+      "notes": "Synthetic TTB COLA\u2013style spirits label (BOURBON WHISKY, 45% ABV, 750 mL).",
+      "image": "tests/fixtures/labels/images/ttb_spirits.png",
+      "image_sha256": "350c969b4d67e70c109a4f117f5df77bf18dde8198a176766a0668872d2a4f2e",
+      "form": "tests/fixtures/labels/forms/ttb_spirits.json",
+      "form_sha256": "8dfdb13796f84ecc74954d4d2397431c9ecbd195f075f3d3e77bd073bb8b0923",
+      "truth": "tests/fixtures/labels/truth/ttb_spirits.json",
+      "truth_sha256": "8dfdb13796f84ecc74954d4d2397431c9ecbd195f075f3d3e77bd073bb8b0923",
+      "expected": "tests/fixtures/labels/expected/ttb_spirits.json",
+      "expected_sha256": "fff2d179b74481c72bc54c101733cd5eb93a4ed1f5c3f789b730559b40d6bd98"
     }
   ]
 }
