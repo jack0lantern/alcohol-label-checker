@@ -299,6 +299,7 @@ function BatchUpload() {
       }
       const body = (await response.json()) as { job_id: string };
       setJobId(body.job_id);
+      websocketRef.current?.close();
       const ws = new WebSocket(batchEventsWebSocketUrl(body.job_id));
       websocketRef.current = ws;
       ws.addEventListener("message", (event) => {
