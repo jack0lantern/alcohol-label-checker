@@ -77,8 +77,8 @@ for (const fixtureId of FIXTURE_IDS) {
 
 function similarity(a: string, b: string | null | undefined): number {
   if (b == null) return 0;
-  const aLow = a.toLowerCase();
-  const bLow = b.toLowerCase();
+  const aLow = a.toLowerCase().trim();
+  const bLow = b.toLowerCase().trim();
   const longer = aLow.length > bLow.length ? aLow : bLow;
   const shorter = aLow.length > bLow.length ? bLow : aLow;
   if (longer.length === 0) return 1;

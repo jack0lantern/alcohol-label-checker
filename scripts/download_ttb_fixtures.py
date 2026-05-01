@@ -104,11 +104,12 @@ def _make_image(fixture: dict, tint: tuple[int, int, int]) -> bytes:
         draw.text((40, y), line, fill=(15, 15, 15))
         y += 60
 
-    # Decorative border lines for visual distinction.
+    # Decorative border confined to the bottom strip, well below text rows.
+    bottom = y + 20
     seed = sum(ord(c) for c in fixture["fixture_id"])
-    for i in range(4):
-        offset = (seed + i * 37) % h
-        draw.line((0, offset, w, (offset + 60) % h), fill=(80, 80, 80), width=1)
+    for i in range(3):
+        row = bottom + (seed + i * 31) % (h - bottom - 10)
+        draw.line((0, row, w, row), fill=(100, 100, 100), width=1)
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
