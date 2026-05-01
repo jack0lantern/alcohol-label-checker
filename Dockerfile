@@ -17,8 +17,10 @@ WORKDIR /app/backend
 COPY backend/app ./app
 
 RUN pip install --no-cache-dir \
+    "cryptography>=47.0.0" \
     "fastapi>=0.111.0" \
     "pillow>=10.4.0" \
+    "pypdf>=6.10.2" \
     "python-multipart>=0.0.9" \
     "uvicorn[standard]>=0.30.0"
 
