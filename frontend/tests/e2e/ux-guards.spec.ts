@@ -24,17 +24,19 @@ test.describe("submit guards", () => {
     await expect(runSingle).toBeEnabled();
   });
 
-  test("start batch check stays disabled until mapping JSON is chosen", async ({ page }) => {
+  test("start batch check stays disabled until a paired item exists with no orphans", async ({ page }) => {
     await page.goto("/");
 
     const startBatch = page.getByRole("button", { name: "Start batch check" });
     await expect(startBatch).toBeDisabled();
 
-    await page.locator("#batch-mapping-json").setInputFiles({
-      name: "batch.json",
-      mimeType: "application/json",
-      buffer: Buffer.from('{"items":[]}'),
-    });
+    // Drop a PDF + a stem-prefixed image so they auto-pair into one item
+    const filesInput = page.locator('section[aria-label="Batch upload"] input[type="file"][multiple]:not([webkitdirectory])');
+    await filesInput.setInputFiles([
+      { name: "widget.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 fake\n") },
+      { name: "widget-front.png", mimeType: "image/png", buffer: Buffer.from("fake-png-bytes") },
+    ]);
+
     await expect(startBatch).toBeEnabled();
   });
 });
