@@ -91,7 +91,6 @@ function BatchUpload() {
   const [state, setState] = useState<WorkingState>(EMPTY_STATE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement | null>(null);
-  const filesInputRef = useRef<HTMLInputElement | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -129,12 +128,6 @@ function BatchUpload() {
   };
 
   const onFolderPicked = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.currentTarget.files;
-    if (files) ingestFiles(files);
-    event.currentTarget.value = "";
-  };
-
-  const onFilesPicked = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.currentTarget.files;
     if (files) ingestFiles(files);
     event.currentTarget.value = "";
@@ -372,7 +365,7 @@ function BatchUpload() {
         onDrop={onDrop}
       >
         {state.fileById.size === 0 ? (
-          <span className="placeholder">Drop a folder or files, or use the buttons below</span>
+          <span className="placeholder">Drop a folder or files, or use the button below</span>
         ) : (
           <span className="batch-summary">
             {summary.total} files: {summary.pdfCount} PDFs, {summary.imageCount} images
@@ -383,7 +376,6 @@ function BatchUpload() {
 
       <div className="batch-pickers">
         <button type="button" onClick={() => folderInputRef.current?.click()}>Pick folder</button>
-        <button type="button" onClick={() => filesInputRef.current?.click()}>Pick files</button>
         <input
           ref={folderInputRef}
           type="file"
@@ -392,14 +384,6 @@ function BatchUpload() {
           multiple
           hidden
           onChange={onFolderPicked}
-        />
-        <input
-          ref={filesInputRef}
-          type="file"
-          multiple
-          accept=".pdf,.png,.jpg,.jpeg,.webp"
-          hidden
-          onChange={onFilesPicked}
         />
       </div>
 

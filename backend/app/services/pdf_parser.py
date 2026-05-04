@@ -51,11 +51,17 @@ def _extract_pdf_text(raw_bytes: bytes) -> str:
 
 
 def _parse_ground_truth_from_form_text(text: str) -> dict[str, Any]:
-    """Merge generic label-style key:value lines with TTB F 5100.31 layout heuristics."""
+    """Merge generic label-style key:value lines with TTB F 5100.31 layout heuristics.
+
+    Key:value lines take precedence: they are more specific (e.g. "BOURBON WHISKY"
+    beats the high-level "DISTILLED SPIRITS" checkbox) and the TTB block extractor
+    can over-capture when multi-page field text follows the government warning.
+    TTB-specific fields serve as fallback when the key:value block is absent.
+    """
     from app.services.extractor import _parse_key_value_text
 
-    merged: dict[str, Any] = dict(_parse_key_value_text(text))
-    for key, value in _extract_ttb_f510031_fields(text).items():
+    merged: dict[str, Any] = dict(_extract_ttb_f510031_fields(text))
+    for key, value in _parse_key_value_text(text).items():
         if value is not None and str(value).strip() != "":
             merged[key] = value
     return merged
