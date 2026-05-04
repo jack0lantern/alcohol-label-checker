@@ -22,8 +22,8 @@ def match_fields(
             status=status,
         )
 
-    warning_expected = ground_truth.government_warning
-    warning_extracted = extracted.government_warning
+    warning_expected = ground_truth.government_warning.strip()
+    warning_extracted = extracted.government_warning.strip()
     warning_status = _match_government_warning(warning_expected, warning_extracted)
     results["government_warning"] = FieldResult(
         field_name="government_warning",
