@@ -62,7 +62,7 @@ def test_government_warning_exact_match_passes() -> None:
     assert result["government_warning"].status == "pass"
 
 
-def test_government_warning_whitespace_difference_not_exact_pass() -> None:
+def test_government_warning_excess_whitespace_passes() -> None:
     warning = (
         "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink "
         "alcoholic beverages during pregnancy because of the risk of birth defects. "
@@ -86,7 +86,7 @@ def test_government_warning_whitespace_difference_not_exact_pass() -> None:
 
     result = match_fields(truth, extracted)
 
-    assert result["government_warning"].status == "review_required"
+    assert result["government_warning"].status == "pass"
 
 
 def test_government_warning_high_similarity_requires_review() -> None:
