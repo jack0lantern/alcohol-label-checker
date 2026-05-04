@@ -12,14 +12,26 @@ from app.domain.models import GroundTruthFields
 def extract_ground_truth(raw_bytes: bytes) -> GroundTruthFields:
     """Load ground truth from a UTF-8 JSON blob (dev/MVP) or a real TTB PDF form."""
     if _is_pdf_magic(raw_bytes):
-        text = _extract_pdf_text(raw_bytes)
-        payload = _parse_ground_truth_from_form_text(text)
-        return _build_ground_truth_fields(payload)
+        reader = _open_pdf(raw_bytes)
+        # AcroForm fields (filled form values) take priority over text-layer parsing.
+        acroform = _extract_acroform_fields(reader)
+        text = _extract_pdf_text_from_reader(reader)
+        text_payload = _parse_ground_truth_from_form_text(text)
+        # Merge: acroform values win over text-layer heuristics.
+        merged: dict[str, Any] = {**text_payload, **acroform}
+        return _build_ground_truth_fields(merged)
     return _ground_truth_from_json_bytes(raw_bytes)
 
 
 def _is_pdf_magic(raw_bytes: bytes) -> bool:
     return len(raw_bytes) >= 5 and raw_bytes[:5] == b"%PDF-"
+
+
+def _open_pdf(raw_bytes: bytes) -> PdfReader:
+    try:
+        return PdfReader(io.BytesIO(raw_bytes))
+    except PdfReadError as exc:
+        raise ValueError("Could not read PDF form") from exc
 
 
 def _ground_truth_from_json_bytes(raw_bytes: bytes) -> GroundTruthFields:
@@ -39,11 +51,112 @@ def _build_ground_truth_fields(payload: dict[str, Any]) -> GroundTruthFields:
     )
 
 
-def _extract_pdf_text(raw_bytes: bytes) -> str:
+def _extract_acroform_fields(reader: PdfReader) -> dict[str, Any]:
+    """Read filled AcroForm widget values from a TTB F 5100.31 PDF.
+
+    Real COLA submissions store applicant-entered data (brand name, product type,
+    net contents, government warning) in PDF form fields, not in the static text
+    layer.  pypdf.get_fields() returns these filled values.
+    """
     try:
-        reader = PdfReader(io.BytesIO(raw_bytes))
-    except PdfReadError as exc:
-        raise ValueError("Could not read PDF form") from exc
+        fields = reader.get_fields() or {}
+    except Exception:
+        return {}
+
+    out: dict[str, Any] = {}
+
+    # Item 6 — Brand Name
+    # Try the canonical full name first, then fall back to the short key "6"
+    for brand_key in ("6. BRAND NAME (Required)", "6"):
+        brand_field = fields.get(brand_key)
+        if brand_field is not None:
+            val = _field_value(brand_field)
+            if val:
+                out["brand_name"] = val
+                break
+
+    # Item 5 — Type of product (checkbox group; value is the selected option name)
+    _PRODUCT_TYPE_CHECKBOX_NAMES = (
+        "Check Box22",   # typical field name on TTB F 5100.31 (04/2023)
+        "5. TYPE OF PRODUCT",
+    )
+    _PRODUCT_TYPE_MAP = {
+        "wine": "WINE",
+        "distilledspirits": "DISTILLED SPIRITS",
+        "maltbev": "MALT BEVERAGE",
+        "malt": "MALT BEVERAGE",
+    }
+    for cb_name in _PRODUCT_TYPE_CHECKBOX_NAMES:
+        cb = fields.get(cb_name)
+        if cb is not None:
+            val = _field_value(cb)
+            if val:
+                normalized = _PRODUCT_TYPE_MAP.get(val.lower().replace(" ", "").replace("_", ""))
+                if normalized:
+                    out["class_type"] = normalized
+                    break
+
+    # Item 15 — Blown/branded/embossed info (net contents, alcohol content, government warning)
+    #
+    # TTB guidance directs applicants to list net contents and the government warning here
+    # when they do not appear separately on affixed labels.  Many real COLAs place all
+    # mandatory information in this single free-text field.
+    #
+    # PDFs sometimes truncate long field names, producing multiple keys with the same
+    # prefix (e.g. "15.  SHOW...CONTAINER (e", "15.  SHOW...CONTAINER (e.g",
+    # "15.  SHOW...CONTAINER (e.g., net contents)...LABELS").  We pick the longest
+    # matching key because that is the leaf field that actually holds the /V value.
+    f15_candidates = [k for k in fields if k.startswith("15.") and "BLOWN" in k.upper()]
+    if f15_candidates:
+        f15_key = max(f15_candidates, key=len)
+        f15_field = fields[f15_key]
+        val = _field_value(f15_field)
+        if val:
+            _parse_field15_into(val, out)
+
+    return out
+
+
+def _field_value(field: Any) -> str | None:
+    """Return the string value of a pypdf Field, stripping leading '/' from PDF name objects."""
+    if field is None:
+        return None
+    raw = field.get("/V") if hasattr(field, "get") else field
+    if raw is None or raw == "/Off":
+        return None
+    text = str(raw).strip()
+    # PDF name objects for checkboxes arrive as e.g. '/Wine' — strip the slash
+    if text.startswith("/"):
+        text = text[1:]
+    return text if text else None
+
+
+def _parse_field15_into(text: str, out: dict[str, Any]) -> None:
+    """Parse net contents, alcohol content, and government warning from field 15 free text."""
+    normalised = text.replace("\r", " ")
+
+    if "government_warning" not in out:
+        gw_m = re.search(r"(GOVERNMENT WARNING:.+)", normalised, re.IGNORECASE | re.DOTALL)
+        if gw_m:
+            out["government_warning"] = re.sub(r"\s+", " ", gw_m.group(1)).strip()
+
+    if "net_contents" not in out:
+        nc_m = re.search(r"(\d[\d.,]*\s*(?:ML|L|OZ|fl\.?\s*oz\.?)\b)", normalised, re.IGNORECASE)
+        if nc_m:
+            out["net_contents"] = nc_m.group(1).strip()
+
+    if "alcohol_content" not in out:
+        alc_m = re.search(r"(ALC\.?\s*[\d.]+\s*%\s*BY\s*VOL\.?)", normalised, re.IGNORECASE)
+        if alc_m:
+            out["alcohol_content"] = alc_m.group(1).strip()
+
+
+def _extract_pdf_text(raw_bytes: bytes) -> str:
+    reader = _open_pdf(raw_bytes)
+    return _extract_pdf_text_from_reader(reader)
+
+
+def _extract_pdf_text_from_reader(reader: PdfReader) -> str:
     parts: list[str] = []
     for page in reader.pages:
         parts.append(page.extract_text() or "")

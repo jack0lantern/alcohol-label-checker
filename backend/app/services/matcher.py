@@ -22,8 +22,8 @@ def match_fields(
             status=status,
         )
 
-    warning_expected = ground_truth.government_warning.strip()
-    warning_extracted = extracted.government_warning.strip()
+    warning_expected = _safe_strip(ground_truth.government_warning)
+    warning_extracted = _safe_strip(extracted.government_warning)
     warning_status = _match_government_warning(warning_expected, warning_extracted)
     results["government_warning"] = FieldResult(
         field_name="government_warning",
@@ -33,6 +33,13 @@ def match_fields(
     )
 
     return results
+
+
+def _safe_strip(value: FieldValue) -> str:
+    """Return stripped string; treats None as empty string."""
+    if value is None:
+        return ""
+    return value.strip()
 
 
 def _match_government_warning(expected: FieldValue, extracted: FieldValue) -> MatchStatus:
